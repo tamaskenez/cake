@@ -25,12 +25,12 @@ Extensive list of features:
 Variables That Control Cake 
 ====================
 
-You can set environment variables or CMake variables in files located in these files:
+You can set environment variables to control cake or you can set CMake variables in files located here:
 
 - `$HOME/cakecfg.cmake` (`%HOMEDRIVE%\%HOMEPATH%\cakecfg.cmake`)
 - `<cake-install-dir>/cakecfg.cmake`
 - `<source-dir>/cakecfg.cmake`
-- a cake-module: a file located in one of the paths from `CAKE_MODULE_PATH`
+- a cake-module: a file located in one of the paths from `CAKE_MODULE_PATH`. Options specified in cake-modules can be added to the current command-line with `-m <module-name>`
 
 ### CAKE_OPTIONS
 
