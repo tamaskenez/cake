@@ -523,9 +523,14 @@ if(need_generate_step)
 			execute_process(COMMAND
 				${cmake_command_line}
 				RESULT_VARIABLE r
+				ERROR_VARIABLE e
 			)
+			if(e)
+				cake_message(STATUS "STDERR from the previous CMake configuration/generation run:")
+				cake_message("${e}")
+			endif()
 			if(r)
-				cake_message(FATAL_ERROR "CMake generate step failed.")
+				cake_message(FATAL_ERROR "CMake generate step failed, result: ${r}.")
 			endif()
 		endif()
 	endforeach()
@@ -611,9 +616,14 @@ if(need_build_step)
 			execute_process(COMMAND
 				${cmake_command_line}
 				RESULT_VARIABLE r
+				ERROR_VARIABLE e
 			)
+			if(e)
+				cake_message(STATUS "STDERR from the previous CMake build run:")
+				cake_message("${e}")
+			endif()
 			if(r)
-				cake_message(FATAL_ERROR "CMake build step failed.")
+				cake_message(FATAL_ERROR "CMake build step failed, result: ${r}.")
 			endif()
 		endforeach()
 	endforeach()
