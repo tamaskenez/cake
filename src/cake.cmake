@@ -81,7 +81,7 @@
 #         build specific target (implies -b)
 #         note: you can specify multiple targets:
 #         -t tgt1 -t tgt2
-#     -i, --install
+#     -n, --install
 #         shortcut for --target=install
 #     --clean-first
 #     --use-stderr
@@ -173,7 +173,7 @@ foreach(i RANGE ${first_arg_idx} ${last_arg_idx})
 			set(last_switch "${a}")
 		elseif(a MATCHES "^(-C|-D|-U|-G|-T|-m|-c|--config=|-t|--target=)(.*)$")
 			list(APPEND cake_options "${a}")
-		elseif(a MATCHES "^(-W(no-)?dev|-N|--rm-bin|-R|--debug-release|-i|--install|--clean-first|--use-stderr)$")
+		elseif(a MATCHES "^(-W(no-)?dev|-N|--rm-bin|-R|--debug-release|-n|--install|--clean-first|--use-stderr)$")
 			list(APPEND cake_options "${a}")
 		elseif(a MATCHES "^--ide$")
 			set(opt_ide 1)
@@ -412,7 +412,7 @@ foreach(a ${CAKE_OPTIONS})
 			handle_opt_config(Release)
 		elseif(a MATCHES "^(-t|--target=)(.+)^")
 			handle_opt_target("${CMAKE_MATCH_2}")
-		elseif(a MATCHES "^-i|--install$")
+		elseif(a MATCHES "^-n|--install$")
 			handle_opt_target(install)
 		elseif(a MATCHES "^(--clean-first|--use-stderr)$")
 			list(APPEND opt_build "${a}")
