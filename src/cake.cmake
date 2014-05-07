@@ -313,28 +313,6 @@ if(opt_binary_dir)
 	set(binary_dir_from_args 1)
 endif()
 
-if(NOT CAKE_BINARY_DIR)
-	get_filename_component(CAKE_BINARY_DIR "${cake_source_dir}" NAME)
-endif()
-
-if(NOT IS_ABSOLUTE "${CAKE_BINARY_DIR}")
-	if(NOT CAKE_BINARY_DIR_PREFIX)
-		if(NOT CAKE_TMP_DIR)
-			cake_message(FATAL_ERROR "Temporary dir not found for generating binary dir. Specify CAKE_BINARY_DIR_PREFIX or absolute path for CAKE_BINARY_DIR.")
-		endif()
-		set(CAKE_BINARY_DIR_PREFIX ${CAKE_TMP_DIR})
-	endif()
-	set(CAKE_BINARY_DIR ${CAKE_BINARY_DIR_PREFIX}/${CAKE_BINARY_DIR})
-endif()
-
-# try to load cmake_generator_from_cmakecache from the binary dir
-if(IS_DIRECTORY ${CAKE_BINARY_DIR})
-	file(STRINGS ${CAKE_BINARY_DIR}/CMakeCache.txt v
-		REGEX "CMAKE_GENERATOR")
-	string(REGEX MATCH "^[\t ]*CMAKE_GENERATOR:INTERNAL=(.*)$" v ${v})
-	set(cmake_generator_from_cmakecache ${CMAKE_MATCH_1})
-endif()
-
 # combine the options from the .cakecfg files with the ones
 # specified on the command line
 list(APPEND CAKE_OPTIONS ${cake_options})
@@ -438,6 +416,29 @@ if(cmake_build_type)
 	else()
 		set(opt_configs "${cmake_build_type}")
 	endif()
+endif()
+
+# settle on CAKE_BINARY_DIR
+if(NOT CAKE_BINARY_DIR)
+	get_filename_component(CAKE_BINARY_DIR "${cake_source_dir}" NAME)
+endif()
+
+if(NOT IS_ABSOLUTE "${CAKE_BINARY_DIR}")
+	if(NOT CAKE_BINARY_DIR_PREFIX)
+		if(NOT CAKE_TMP_DIR)
+			cake_message(FATAL_ERROR "Temporary dir not found for generating binary dir. Specify CAKE_BINARY_DIR_PREFIX or absolute path for CAKE_BINARY_DIR.")
+		endif()
+		set(CAKE_BINARY_DIR_PREFIX ${CAKE_TMP_DIR})
+	endif()
+	set(CAKE_BINARY_DIR ${CAKE_BINARY_DIR_PREFIX}/${CAKE_BINARY_DIR})
+endif()
+
+# try to load cmake_generator_from_cmakecache from the binary dir
+if(NOT opt_rm_bin AND IS_DIRECTORY ${CAKE_BINARY_DIR})
+	file(STRINGS ${CAKE_BINARY_DIR}/CMakeCache.txt v
+		REGEX "CMAKE_GENERATOR")
+	string(REGEX MATCH "^[\t ]*CMAKE_GENERATOR:INTERNAL=(.*)$" v ${v})
+	set(cmake_generator_from_cmakecache ${CMAKE_MATCH_1})
 endif()
 
 if(cmake_generator_from_cmakecache)
