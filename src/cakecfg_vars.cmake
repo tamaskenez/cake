@@ -2,17 +2,6 @@
 #     binary dirs will be created using this as a base
 #     if not defined, defaults to the temporary dir
 
-# CAKE_BINARY_DIR
-#     defines the CMake binary dir
-#     (1) Leave it undefined to make cake automatically calculate a
-#         binary directory below CAKE_BINARY_DIR_PREFIX
-#     (2) You can set it to a relative path. It will be
-#         relative to CAKE_BINARY_DIR_PREFIX
-#     (3) You can set it to an absolute path
-#     In all cases when using single-config (non-IDE)
-#     generator, the directory name will be postfixed
-#     with the configuration (Debug, Release, ...)
-
 # CAKE_OPTIONS
 #     options parsed by cake, most of these passed to cmake
 #     The options after the '--' must be listed in CAKE_NATIVE_TOOL_OPTIONS
@@ -25,6 +14,17 @@
 #     options passed to the native tool in cmake build step
 #     These are the options listed after the '--' in
 #     cmake --build ... -- ...
+
+# CAKE_LINK_BINARY_DIR
+#     Controls the automatic linking of a CMake source-dir
+#     to a binary dir.
+#     Possible values:
+#     - none: don't link source dirs to binary dirs
+#     - inside: automatically create a file <source-dir>/.cmake_binary_dir
+#         which contains the location of the binary dir
+#     - beside: automatically create a file <source-dir>.cmake_binary_dir
+#         which contains the location of the binary dir
+#     If it's undefined, defaults to 'inside'
 
 # CAKE_GENERATE_ALWAYS
 #     If true or undefined then the generate step of CMake

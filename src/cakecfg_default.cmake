@@ -12,3 +12,5 @@ if(CAKE_TMP_DIR)
 endif()
 
 set(CAKE_MODULE_PATH "${CAKE_ROOT}/modules")
+
+unset(CAKE_LINK_BINARY_DIR)

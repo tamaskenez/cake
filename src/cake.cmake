@@ -4,21 +4,20 @@
 # or both.
 #
 # The cmake-source-dir must contain CMakeLists.txt. It may
-# contain a .cakecfg.cmake file which contains the location
-# of binary dir. This is set automatically in the first run
-# of cake.
+# contain a .cmake_binary_dir file which contains the location
+# of binary dir. The other options is that <source-dir>.cmake_binary_dir
+# contains the name of the associated binary dir. This is set automatically
+# in the first run of cake. The automatic creation of the .cmake_binary_dir
+# files is controlled by the CAKE_LINK_BINARY_DIR cake setting, which
+# can be set in a .cakecfg.cmake file (see later).
 #
-# The cmake-binary-dir can be a relative or absolute path.
-# If it's relative it will be appended to the value of
-# CAKE_BINARY_DIR_PREFIX which can be set by
-# - env-var CAKE_BINARY_DIR_PREFIX, or in .cakecfg.cmake located in:
-# - ${CAKE_ROOT} (cake install dir)
-# - user home directory
-# - cmake-source-dir
-#
-# If no cmake-binary-dir specified, the last component of the
-# cake-source-dir will be used as a relative cake-binary-dir
-# on the first run of cake.
+# Another cake config setting is the CAKE_BINARY_DIR_PREFIX.
+# It controls the location of the cmake-binary-dir if no
+# cmake-binary-dir is specified on the first run of cake/cmake
+# on a source directory. In this case the last component of the
+# cake-source-dir path will be appended to the value of CAKE_BINARY_DIR_PREFIX.
+# If no CAKE_BINARY_DIR_PREFIX is set in a config file or environment
+# variable then the binary dir will be created in the system temporary dir.
 #
 # Standard CMake generator options (see cmake documentation):
 #
@@ -42,18 +41,10 @@
 #         options. If relative it will be searched
 #         on the paths listed in CAKE_MODULE_PATH.
 #         The cake module may set the following CMake variables:
-#             CAKE_BINARY_DIR_PREFIX, CAKE_BINARY_DIR,
 #             CAKE_OPTIONS, CAKE_NATIVE_TOOL_OPTIONS, CAKE_MODULE_PATH
-#             CAKE_GENERATE_ALWAYS
 #         - The value of the CAKE_OPTIONS, CAKE_NATIVE_TOOL_OPTIONS,
 #           CAKE_MODULE_PATH will be appended to the list set by
 #           other modules, config files and on the cake command line.
-#         - CAKE_BINARY_DIR_PREFIX and CAKE_GENERATE_ALWAYS can be
-#           set only at one place.
-#         - The value of CAKE_BINARY_DIR will override less specific
-#           values set previously: e.g. if it is set to a relative dir
-#           in a module/config/command-line and to an absolute path in
-#           in another location, the absolute path will be used.
 #
 # Other options:
 #     -c <cfg>, --config <cfg>
@@ -92,7 +83,7 @@
 # Note: all parametrized options can be written in one word,
 # without space space-separator: '-t mytarget' and '-tmytarget'.
 # The long form can be written with space instead of '=':
-# '-=target mytarget' and '--target=mytarget'
+# '--target mytarget' and '--target=mytarget'
 
 cmake_minimum_required(VERSION 2.8)
 
@@ -208,17 +199,83 @@ if(lb GREATER 1)
 	cake_message(FATAL_ERROR "Multiple binary directories specified.")
 endif()
 
+
 unset(cake_source_dir)
 if(opt_source_dir)
 	get_filename_component(cake_source_dir "${opt_source_dir}" ABSOLUTE)
+	# get the binary dir if not given on command line
+	if(NOT opt_binary_dir)
+		foreach(i ${opt_source_dir}/.cmake_binary_dir ${opt_source_dir}.cmake_binary_dir)
+			if(EXISTS ${i})
+				file(READ ${i} CAKE_BINARY_DIR)
+				break()
+			endif()
+		endforeach()
+	endif()
 endif()
-# otherwise we need to obtain the source dir from the binary dir
+
+unset(binary_dir_from_args)
+if(opt_binary_dir)
+	get_filename_component(CAKE_BINARY_DIR ${opt_binary_dir} ABSOLUTE)
+	if(NOT opt_source_dir)
+		# retrieve source dir from CMakeCache.txt
+		if(NOT EXISTS ${CAKE_BINARY_DIR}/CMakeCache.txt)
+			cake_message(FATAL_ERROR "No source dir specified and binary dir does not contain CMakeLists.txt to obtain the associated source dir.")
+		endif()
+		file(STRINGS ${CAKE_BINARY_DIR}/CMakeCache.txt v REGEX "CMAKE_HOME_DIRECTORY")
+		string(REGEX MATCH "^[\t ]*CMAKE_HOME_DIRECTORY:INTERNAL=(.*)$" v ${v})
+		set(cake_source_dir ${CMAKE_MATCH_1})
+		if(NOT cake_source_dir)
+			cake_message(FATAL_ERROR "No source dir specified, and no CMAKE_HOME_DIRECTORY found when parsing ${CAKE_BINARY_DIR}/CMakeCache.txt.")
+		endif()
+		if(NOT EXISTS "${cake_source_dir}")
+			cake_message(FATAL_ERROR "No source dir specified, and parsing CMAKE_HOME_DIRECTORY from ${CAKE_BINARY_DIR}/CMakeCache.txt yielded a non-existent source dir: '${cake_source_dir}'.")
+		endif()
+		if(NOT EXISTS "${cake_source_dir}/CMakeLists.txt")
+			cake_message(FATAL_ERROR "No source dir specified, and parsing CMAKE_HOME_DIRECTORY from ${CAKE_BINARY_DIR}/CMakeCache.txt yielded a non-existent source dir: '${cake_source_dir}' where no CMakeLists.txt can be found.")
+		endif()
+	endif()
+	set(binary_dir_from_args 1)
+endif()
+
+if(NOT EXISTS ${cake_source_dir}/CMakeLists.txt)
+	cake_message(FATAL_ERROR "Internal error: at this point we should have a valid cake_source_dir")
+endif()
+
+cake_message(STATUS "Source dir: '${cake_source_dir}'")
 
 # load defaults
 include(${CAKE_ROOT}/src/cakecfg_default.cmake)
 
-# load system config
-load_config("${CAKE_ROOT}" root)
+# load config from env vars
+foreach(i CAKE_BINARY_DIR_PREFIX CAKE_GENERATE_ALWAYS CAKE_LINK_BINARY_DIR)
+	if(NOT "$ENV{${i}}" STREQUAL "")
+		set(${i}, "$ENV{${i}}")
+	endif()
+endforeach()
+
+if(NOT WIN32 OR DEFINED ENV{MSYSTEM})
+	set(s UNIX)
+else()
+	set(s WINDOWS)
+endif()
+separate_arguments(env_cake_options_separated ${s}_COMMAND "$ENV{CAKE_OPTIONS}")
+list(APPEND CAKE_OPTIONS ${env_cake_options_separated})
+list(APPEND CAKE_NATIVE_TOOL_OPTIONS $ENV{CAKE_NATIVE_TOOL_OPTIONS})
+list(APPEND CAKE_MODULE_PATH $ENV{CAKE_MODULE_PATH})
+
+# load configs from the source dir and parents of it
+set(i ${cake_source_dir})
+set(cfg_source source-directory)
+while(1)
+	load_config("${i}" ${cfg_source})
+	set(cfg_source directory)
+	get_filename_component(next "${i}" PATH)
+	if(i STREQUAL next OR NOT IS_DIRECTORY ${i})
+		break()
+	endif()
+	set(i ${next})
+endwhile()
 
 # load user config
 unset(home)
@@ -229,88 +286,6 @@ elseif(IS_DIRECTORY "$ENV{HOMEDRIVE}$ENV{HOMEPATH}")
 endif()
 if(home)
 	load_config("${home}" user)
-endif()
-
-unset(binary_dir_from_args)
-if(NOT cake_source_dir)
-	# if at this point we don't have a source dir
-	# we need to settle on a binary dir to be able
-	# to find out the corresponding source dir
-	if(NOT opt_binary_dir)
-		cake_message(FATAL_ERROR "Internal error, neither source nor bin directory is available. Should have exited before.")
-	endif()
-
-	set(CAKE_BINARY_DIR ${opt_binary_dir}) # command-line may override anything
-	set(binary_dir_from_args 1)
-
-	# we have CAKE_BINARY_DIR
-	if(NOT IS_ABSOLUTE "${CAKE_BINARY_DIR}")
-		if(NOT CAKE_BINARY_DIR_PREFIX)
-			if(NOT CAKE_TMP_DIR)
-				cake_message(FATAL_ERROR "Temporary dir not found for generating binary dir. Specify CAKE_BINARY_DIR_PREFIX or absolute path for CAKE_BINARY_DIR.")
-			endif()
-			set(CAKE_BINARY_DIR ${CAKE_TMP_DIR})
-		endif()
-		set(CAKE_BINARY_DIR ${CAKE_BINARY_DIR_PREFIX}/${CAKE_BINARY_DIR})
-	endif()
-
-	# CAKE_BINARY_DIR must be an existing, configured binary dir
-	# we need to extract source dir from CMakeCache.txt
-	if(NOT IS_DIRECTORY "${CAKE_BINARY_DIR}")
-		cake_message(FATAL_ERROR "No source dir specified and binary dir ${CAKE_BINARY_DIR} does not exist.")
-	endif()
-	if(NOT EXISTS "${CAKE_BINARY_DIR}/CMakeCache.txt")
-		cake_message(FATAL_ERROR "No source dir specified and binary dir ${CAKE_BINARY_DIR} is not configured (CMakeCache.txt not found).")
-	endif()
-
-	# retrieve source dir from CMakeCache.txt
-	file(STRINGS ${CAKE_BINARY_DIR}/CMakeCache.txt v REGEX "CMAKE_HOME_DIRECTORY")
-	string(REGEX MATCH "^[\t ]*CMAKE_HOME_DIRECTORY:INTERNAL=(.*)$" v ${v})
-	set(cake_source_dir ${CMAKE_MATCH_1})
-	if(NOT cake_source_dir)
-		cake_message(FATAL_ERROR "No source dir specified, and no CMAKE_HOME_DIRECTORY found while parsing ${CAKE_BINARY_DIR}/CMakeCache.txt.")
-	endif()
-endif()
-
-# validate source dir
-if(NOT EXISTS ${cake_source_dir}/CMakeLists.txt)
-	cake_message(FATAL_ERROR "No CMakeLists.txt found in ${cake_source_dir}.")
-endif()
-
-cake_message(STATUS "Source dir: '${cake_source_dir}'")
-
-# Load source dir config
-load_config("${cake_source_dir}" "source dir")
-
-# load session config
-if(CAKE_TMP_DIR AND sessionid)
-	load_config("${CAKE_TMP_DIR}/cakecfg.${sessionid}.cmake" session)
-endif()
-
-# load config from env vars
-if(NOT "$ENV{CAKE_BINARY_DIR_PREFIX}" STREQUAL "")
-	update_binary_dir_prefix("$ENV{CAKE_BINARY_DIR_PREFIX}" "CAKE_BINARY_DIR_PREFIX env-var")
-endif()
-
-if(NOT "$ENV{CAKE_BINARY_DIR}" STREQUAL "")
-	update_binary_dir("$ENV{CAKE_BINARY_DIR}" "CAKE_BINARY_DIR env-var")
-endif()
-
-if(NOT "$ENV{CAKE_GENERATE_ALWAYS}" STREQUAL "")
-	update_generate_always("$ENV{CAKE_GENERATE_ALWAYS}" "CAKE_GENERATE_ALWAYS env-var")
-endif()
-
-list(APPEND CAKE_OPTIONS $ENV{CAKE_OPTIONS})
-list(APPEND CAKE_NATIVE_TOOL_OPTIONS $ENV{CAKE_NATIVE_TOOL_OPTIONS})
-list(APPEND CAKE_MODULE_PATH $ENV{CAKE_MODULE_PATH})
-
-# load binary dir
-if(opt_binary_dir)
-	# if there was no source dir, this has already been set to exactly this value
-	# if there was a source dir, we override the value of CAKE_BINARY_DIR because
-	# command-line always has priority
-	set(CAKE_BINARY_DIR ${opt_binary_dir})
-	set(binary_dir_from_args 1)
 endif()
 
 # combine the options from the .cakecfg files with the ones
@@ -341,7 +316,7 @@ unset(opt_generate) # options for the generation step
 unset(opt_targets) # list specific targets to build (collected list of parameters to -t|--target)
 unset(opt_configs) # configs to generate or build (Debug, Release, etc..) (collected list of parameters to -c|--config)
 unset(opt_rm_bin) # --rm-bin was specified
-unset(opt_modules2) # collect opt_modules again after we loaded the modules. It's an error for a module to specify a module
+unset(opt_modules2) # collect opt_modules again after we loaded the modules (will be ignored)
 
 # parse CAKE_OPTIONS
 # also remember the last value of -G and -DCMAKE_BUILD_TYPE options
@@ -420,21 +395,22 @@ endif()
 
 # settle on CAKE_BINARY_DIR
 if(NOT CAKE_BINARY_DIR)
-	get_filename_component(CAKE_BINARY_DIR "${cake_source_dir}" NAME)
-endif()
-
-if(NOT IS_ABSOLUTE "${CAKE_BINARY_DIR}")
-	if(NOT CAKE_BINARY_DIR_PREFIX)
+	get_filename_component(cake_source_dir_name "${cake_source_dir}" NAME)
+	if(NOT IS_ABSOLUTE "${CAKE_BINARY_DIR_PREFIX}")
 		if(NOT CAKE_TMP_DIR)
-			cake_message(FATAL_ERROR "Temporary dir not found for generating binary dir. Specify CAKE_BINARY_DIR_PREFIX or absolute path for CAKE_BINARY_DIR.")
+			cake_message(FATAL_ERROR "Temporary dir not found for generating binary dir. Specify an absolute CAKE_BINARY_DIR_PREFIX specify the binary dir on the command line.")
 		endif()
-		set(CAKE_BINARY_DIR_PREFIX ${CAKE_TMP_DIR})
+		if(CAKE_BINARY_DIR_PREFIX)
+			set(CAKE_BINARY_DIR_PREFIX ${CAKE_TMP_DIR}/${CAKE_BINARY_DIR_PREFIX})
+		else()
+			set(CAKE_BINARY_DIR_PREFIX ${CAKE_TMP_DIR})
+		endif()
 	endif()
-	set(CAKE_BINARY_DIR ${CAKE_BINARY_DIR_PREFIX}/${CAKE_BINARY_DIR})
+	set(CAKE_BINARY_DIR ${CAKE_BINARY_DIR_PREFIX}/${cake_source_dir_name})
 endif()
 
 # try to load cmake_generator_from_cmakecache from the binary dir
-if(NOT opt_rm_bin AND IS_DIRECTORY ${CAKE_BINARY_DIR})
+if(NOT opt_rm_bin AND IS_DIRECTORY ${CAKE_BINARY_DIR} AND EXISTS ${CAKE_BINARY_DIR}/CMakeCache.txt)
 	file(STRINGS ${CAKE_BINARY_DIR}/CMakeCache.txt v
 		REGEX "CMAKE_GENERATOR")
 	string(REGEX MATCH "^[\t ]*CMAKE_GENERATOR:INTERNAL=(.*)$" v ${v})
@@ -493,7 +469,7 @@ else()
 	set(config_list.${config_list_size}.binary_dir ${CAKE_BINARY_DIR})
 endif()
 
-if(NOT DEFINED CAKE_GENERATE_ALWAYS OR CAKE_GENERATE_ALWAYS OR opt_generate OR NOT IS_DIRECTORY ${CAKE_BINARY_DIR} OR opt_rm_bin)
+if(NOT DEFINED CAKE_GENERATE_ALWAYS OR CAKE_GENERATE_ALWAYS OR opt_generate OR NOT EXISTS ${CAKE_BINARY_DIR}/CMakeCache.txt OR opt_rm_bin)
 	set(need_generate_step 1)
 endif()
 
@@ -631,4 +607,4 @@ if(need_build_step)
 endif()
 
 # update source dir .cmakecfg.cmake with the binary dir, if needed
-update_source_cmakecfg_with_binary_dir()
+update_source_cmakecfg_with_binary_dir()	
