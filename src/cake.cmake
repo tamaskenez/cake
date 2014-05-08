@@ -135,6 +135,7 @@ if(first_arg_idx GREATER last_arg_idx) # no args after cmake ... -P <path>
 			break()
 		endif()
 		string(SUBSTRING "${i}" 1 -1 i)
+		message("${i}")
 	endforeach()
 	return()
 endif()
