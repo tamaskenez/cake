@@ -135,7 +135,6 @@ if(first_arg_idx GREATER last_arg_idx) # no args after cmake ... -P <path>
 			break()
 		endif()
 		string(SUBSTRING "${i}" 1 -1 i)
-		message("${i}")
 	endforeach()
 	return()
 endif()
@@ -163,6 +162,7 @@ foreach(i RANGE ${first_arg_idx} ${last_arg_idx})
 		if(a MATCHES "^(-C|-D|-U|-G|-T|-c|--config|-t|--target|-m)$")
 			set(last_switch "${a}")
 		elseif(a MATCHES "^(-C|-D|-U|-G|-T|-m|-c|--config=|-t|--target=)(.*)$")
+			string(REPLACE ";" "\;" a "${a}")
 			list(APPEND cake_options "${a}")
 		elseif(a MATCHES "^(-W(no-)?dev|-N|--rm-bin|-R|--debug-release|-n|--install|--clean-first|--use-stderr)$")
 			list(APPEND cake_options "${a}")
@@ -290,7 +290,7 @@ endif()
 
 # combine the options from the .cakecfg files with the ones
 # specified on the command line
-list(APPEND CAKE_OPTIONS ${cake_options})
+list(APPEND CAKE_OPTIONS "${cake_options}")
 list(APPEND CAKE_NATIVE_TOOL_OPTIONS ${cake_native_tool_options})
 
 unset(opt_modules)
@@ -346,6 +346,7 @@ foreach(a ${CAKE_OPTIONS})
 		if(a MATCHES "^(-C|-D|-U|-G|-T|-c|--config|-t|--target|-m)$")
 			set(last_switch ${a})
 		elseif(a MATCHES "^(-C|-D|-U|-G|-T)(.*)$")
+			string(REPLACE ";" "\;" a "${a}")
 			list(APPEND opt_generate "${a}")
 			if(a MATCHES "^-G(.+)$")
 				set(cmake_generator_from_command_line ${CMAKE_MATCH_1})
@@ -492,10 +493,10 @@ if(need_generate_step)
 				cmake
 				"-H${cake_source_dir}"
 				"-B${binary_dir}"
-				${opt_generate}
-				${cbt}
+				"${opt_generate}"
+				"${cbt}"
 			)
-			list_to_command_line_like_string(s ${cmake_command_line})
+			list_to_command_line_like_string(s "${cmake_command_line}")
 			cake_message(STATUS "${s}")
 			execute_process(COMMAND
 				${cmake_command_line}
@@ -525,7 +526,7 @@ if(opt_gui)
 	cake_message(STATUS ${s})
 	execute_process(COMMAND ${command_line} RESULT_VARIABLE r)
 	if(r)
-		message(FATAL_ERROR "result: ${r}")
+		cake_message(FATAL_ERROR "result: ${r}")
 	endif()
 endif()
 
