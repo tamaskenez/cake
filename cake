@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # forward arguments to cake.cmake
 # see help there
 
