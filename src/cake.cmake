@@ -251,7 +251,7 @@ include(${CAKE_ROOT}/src/cakecfg_default.cmake)
 # load config from env vars
 foreach(i CAKE_BINARY_DIR_PREFIX CAKE_GENERATE_ALWAYS CAKE_LINK_BINARY_DIR)
 	if(NOT "$ENV{${i}}" STREQUAL "")
-		set(${i}, "$ENV{${i}}")
+		set(${i} "$ENV{${i}}")
 	endif()
 endforeach()
 
