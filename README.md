@@ -25,20 +25,19 @@ As a quick demonstration the *CMakeLists.txt* of a project using *libpng* looks 
     include_directories(${PNG_INCLUDE_DIRS})
     add_definitions(${PNG_DEFINITIONS})
     add_executable(pngtest main.cpp)
-    target_link_libraries(pngtest ${PNG_LIBRARIES})</pre>
+    target_link_libraries(pngtest ${PNG_LIBRARIES})
 
 The `cake_find_package()` macro clones, builds and installs *libpng* and its dependency, *zlib*, in configure time and calls `find_package(PNG)`.
 
-For a package management tutorial please see the article: [cake-package-management-tutorial](https://github.com/tamaskenez/cake/blob/master/doc/cake_codeproject_article.html).
+For a package management tutorial please see the article: [cake-package-management-tutorial](http://tamaskenez.github.io/cake_codeproject_article.html). For reference see the help in the files in this directory: [/Modules](https://github.com/tamaskenez/cake/tree/master/Modules) and also the [/samples](https://github.com/tamaskenez/cake/tree/master/samples).
 
 The `cake` shell command
 ------------------------
 
-The `cake` is a shell command (implemented in a *CMake* script) which you can use in place of calling cmake directly. The main purpose of `cake` is to save typing the same parameters for `cmake` and perform common operations more conveniently. Examples:
+The `cake` is a shell command (implemented in a *CMake* script) which you can use in place of calling `cmake` directly. The main purpose of `cake` is to save typing and perform common operations more conveniently. Examples:
 
 - `cake .`: runs `cmake` for the current directory as source-dir, with other parameters like binary-dir location, cmake-generator read from environment variables or a config file.
 - `cake . -R -n`: runs `cmake` for the current  directory then builds the install target for Debug and Release configurations.
 - `cake . --ide`: opens the IDE (XCode or Visual Studio) for the current dir.
-- 
 
-For more information about the `cake` command please see this tutorial: (cake-tutorial)[https://github.com/tamaskenez/cake/blob/master/doc/cake-tutorial.md].
+For more information about the `cake` command please see this tutorial: [cake-tutorial](https://github.com/tamaskenez/cake/blob/master/doc/cake-tutorial.md) and the help in the file [/cake-src/cake.cmake](https://github.com/tamaskenez/cake/blob/master/cake-src/cake.cmake).

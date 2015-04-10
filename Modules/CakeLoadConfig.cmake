@@ -2,9 +2,8 @@
 # CakeLoadConfig
 # -----------
 #
-# Loads the Cake configuration variables from the shell environment or configuration file.
-# This macro is called automatically by the first Cake function which needs to access the configuration.
-# Subsequent calls are no-ops.
+# Loads the Cake configuration variables from the shell environment or configuration file. You don't need
+# call this macro directly. This help is provided to document the Cake configuration variables.
 #
 # ::
 #
