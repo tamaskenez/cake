@@ -1,0 +1,291 @@
+<h2>Introduction</h2>
+
+<p>C and C++ development lacks a fundamental tool: the package manager. Adding a new library to your project which you&#39;ve just found on GitHub should be no more than copying its URL into your project file. Managing the master project of your application which links to 10-20 in-house and third-party dependencies should not cost more than a few minutes of your precious development time.</p>
+
+<p>There are great initiatives, like <a href="https://www.biicode.com">biicode</a>, <a href="http://www.cpm.rocks/">CPM</a>, <a href="http://floooh.github.io/fips">fips</a> and <a href="https://github.com/ruslo/hunter">Hunter</a> (these are the CMake-based ones I&#39;m aware of). I&#39;d like to present you yet another tool, <em>Cake</em>, which is based on <em>CMake</em> and <em>git</em> and which differs from those approaches in the following ways:</p>
+
+<ul>
+  <li><em>Cake</em> is lightweight, non-intrusive solution, minimal change in your CMake files, no need to commit yourself to a new ecosystem</li>
+  <li>It adds only two CMake functions to manage your dependencies: quick to learn</li>
+  <li>Both kinds of packages are supported:
+  <ul>
+    <li>External packages: fetched, built and installed before the main project</li>
+    <li>Subprojects, added with CMake&#39;s <code>add_subdirectory</code></li>
+  </ul>
+  </li>
+  <li><em>Cake</em> can be used with existing, CMake-enabled packages (no need to modify the library for use it with <em>Cake</em>)</li>
+  <li>Supports optional dependencies (think of a <code>--with-sqlite</code> switch in autoconfig)</li>
+  <li>Helps to manage master projects: provides a new solution to the git-submodule problem</li>
+  <li>Implemented as a platform-neutral CMake script.</li>
+</ul>
+
+<p>And the what it does not do:</p>
+
+<ul>
+  <li>Does not discover dependencies of your project automagically</li>
+  <li>No file-level dependency management, a package is the entire repository of the library</li>
+  <li>No high-level package descriptor files: versioning is controlled by asking for specific git commits/tags.</li>
+</ul>
+
+<p>I&#39;d like to show you how to use <em>Cake</em> and encourage you to <a href="https://github.com/tamaskenez/cake">download it</a> and try it on your own projects. I&#39;d also like to invite developers to improve <em>Cake</em> with new features.</p>
+
+<p>As a quick demonstration, the CMakeLists.txt of a project using <em>libpng</em> looks like this:</p>
+
+<pre lang="text">
+cmake_minimum_required(VERSION 3.1)
+project(pngtest)
+
+include(${CAKE_ROOT}/Cake.cmake)
+
+cake_find_package(PNG REQUIRED URL git://git.code.sf.net/p/libpng/code) # the official libpng repo
+
+include_directories(${PNG_INCLUDE_DIRS})
+add_definitions(${PNG_DEFINITIONS})
+add_executable(pngtest main.cpp)
+target_link_libraries(pngtest ${PNG_LIBRARIES})</pre>
+
+<p>The <code>cake_find_package()</code> macro clones, builds and installs <em>libpng</em> and its dependency, <em>zlib</em>, in configure-time and calls <code>find_package(PNG)</code>.</p>
+
+<h4><span style="color: rgb(255, 153, 0); font-size: 19px; font-weight: normal;">Overview</span></h4>
+
+<p>The package manager is a collection of CMake scripts. The repository can be found at <a href="https://github.com/tamaskenez/cake">https://github.com/tamaskenez/cake</a>. It contains a CMake module which can be downloaded/included in your CMakeLists.txt files. It provides 3 CMake functions: <code>cake_pkg</code>, <code>cake_find_package</code>, <code>cake_add_subdirectory</code> and two helper shell commands: <code>cake</code> and <code>cakepkg</code>.</p>
+
+<p>Let&#39;s see the basic operations you can do with Cake:</p>
+
+<h4>Install a package without dependencies from the command-line</h4>
+
+<p>The recommended way to install packages is to call <em>Cake</em> commands from your project&#39;s CMakeLists.txt. However in certain scenarios you may prefer to install the before configuring your project with CMake. <em>Cake</em> provides a shell command <code>cakepkg</code>, to download and install packages manually or in an init script of your repository.</p>
+
+<p>Let&#39;s use the <code>cakepkg</code> to install <em>zlib</em>:</p>
+
+<pre>
+cakepkg INSTALL URL https://github.com/madler/zlib.git # official zlib repo</pre>
+
+<p>This command clones the <em>zlib</em> repository then builds and installs it with CMake. The location of the local copy of the <em>zlib</em> repo and the build and install directories are controlled by <em>Cake</em>&#39;s configuration variables, more about these later.</p>
+
+<p>You can control the details of the git-clone operation using the URL query string:</p>
+
+<pre>
+cakepkg INSTALL URL https://github.com/madler/zlib.git?branch=develop&amp;depth=1</pre>
+
+<p>The query items are parsed by <em>Cake</em> and forwarded to <em>git-clone</em>.</p>
+
+<p>You can also forward variable definitions to the <code>cmake</code> command which builds the library:</p>
+
+<pre>
+cakepkg INSTALL URL https://github.com/madler/zlib.git?-DAMD64=1</pre>
+
+<p>This is similar to the <code>--with-*</code> flags feature of <em>autoconf</em>.</p>
+
+<h4>Install a package with dependency from the command-line</h4>
+
+<p>A package manager&#39;s main feature is to fetch and install the dependencies recursively. This command which install <em>libpng</em>, which is dependent on <em>zlib</em>:</p>
+
+<pre>
+cakepkg INSTALL URL git://git.code.sf.net/p/libpng/code # official libpng repo</pre>
+
+<p>This command clones the <em>libpng</em> repository, discovers that it is dependent on <em>zlib</em>, so clones that one, too. Then installs <em>zlib</em> and then <em>libpng</em>.</p>
+
+<p>How does <em>Cake</em> know <em>libpng</em> is dependent on <em>zlib</em>? There are three methods to specify this.</p>
+
+<ol>
+  <li>The first method is to be used with third-party project you can&#39;t or don&#39;t want to modify (like <em>libpng</em>). For such projects the dependency information is described in a file, <code>cake_pkg_db.cmake</code> in the root of the <em>Cake</em> installation.</li>
+  <li>The second method can be used if you can add files to the library project but don&#39;t want to mess with its CMakeLists.txt. In this case you need to put a file <code>cake-depends.cmake</code> in the root of the library&#39;s repository, which installs the required dependencies.</li>
+  <li>The third, recommended method is to simply replace the <code>find_package()</code> commands in your library&#39;s CMakeLists.txt with <code>cake_find_package(... URL ...)</code> calls.</li>
+</ol>
+
+<p>In case of <em>libpng</em> we need to use the first method so we can use the official, unmodified <em>libpng</em> repository. We&#39;ll describe all three methods in detail later.</p>
+
+<h4>Install and use a package from your CMakeLists.txt</h4>
+
+<p>This is the scenario already shown in the introduction:</p>
+
+<pre lang="text">
+cmake_minimum_required(VERSION 3.1)
+project(pngtest)
+
+include(${CAKE_ROOT}/Cake.cmake)
+
+cake_find_package(PNG REQUIRED URL git://git.code.sf.net/p/libpng/code) # the official libpng repo
+
+include_directories(${PNG_INCLUDE_DIRS})
+add_definitions(${PNG_DEFINITIONS})
+add_executable(pngtest main.cpp)
+target_link_libraries(pngtest ${PNG_LIBRARIES})</pre>
+
+<p>The <code>cake_find_package()</code> macro downloads and installs <em>libpng</em> and its dependency, <em>zlib</em>, in configure-time. Of course, if you call cmake-configure the second time, git-clone will be skipped. Also, <em>Cake</em> stores the SHA1 commit-id of the last successful builds of <em>zlib</em> and <em>libpng</em>. If the repositories&#39; HEADs are still on those commits no build will be triggered, the command will take very little time..</p>
+
+<p>Note that you only need to replace <code>find_package</code> with <code>cake_find_package</code> in your main project. Neither the <em>libpng&#39;s </em>CMakeLists.txt nor the FindPNG.cmake module (which calls <code>find_package(ZLIB...)</code>) have to be changed.</p>
+
+<p>After the cloning/building phase the <code>cake_find_package</code> command calls the usual <code>find_package()</code> with rest of the arguments. You may object that it would be a cleaner API design to provide a <em>Cake</em> command which performs the clone/build/install phase and you would call <code>find_package</code> explicitly:</p>
+
+<pre lang="text">
+cake_pkg(INSTALL URL git://git.code.sf.net/p/libpng/code) # the official libpng repo
+find_package(PNG REQUIRED)</pre>
+
+<p>The <code>cake_pkg</code> actually exists and this code does work. However, using <code>cake_find_package</code> is still better in some cases:</p>
+
+<p>Typically use want to use a library as an external dependency (built in its own source tree) when you&#39;re not modifying it. On the other hand, when your project is broken down into libraries you&#39;re working on it&#39;s more convenient to add them as subdirectories into a master project.</p>
+
+<p>When using library &#39;A&#39; in library/executable &#39;B&#39; you don&#39;t want to care about the fact whether &#39;A&#39; comes from a separate source tree or built in the same master project as &#39;B&#39;. You will just need to call <code>cake_find_package(A URL ...)</code> in the CMakeLists.txt of project &#39;B&#39; and it will work in both cases. This is demonstrated in the next example:</p>
+
+<p><span style="font-size: 16px; font-weight: bold;">Add a package as a subproject</span></p>
+
+<p>When you&#39;re using dependencies you need to edit and debug it&#39;s much more convenient if you add them as subprojects with the CMake <code>add_subdirectory</code> command.</p>
+
+<p>The tricky part to add a package as a subproject is, as opposed to an external project, that it won&#39;t be installed before your main project calls <code>find_package</code> for it. Moreover, we would like to use the package&#39;s headers from their original location in the source tree and not from their install location.</p>
+
+<p>Fortunately CMake has a solution for these problems. There are two things to keep in mind:</p>
+
+<ul>
+  <li>Instead of the classic <code>add_include_directories</code>, <code>add_definitions</code> commands, the dependent package must use the <code>target_*</code> command family to describe these properties (<code>target_include_directories</code>, <code>target_compiler_definitions</code>, <code>target_compile_options</code>, <code>target_link_libraries</code>, <code>target_compile_features</code>). It also may need to use the <code>target_include_directories</code> command&#39;s <code>BUILD_INTERFACE</code>/<code>INSTALL_INTERFACE</code> generator expressions to allow the headers to be used from their original location in the source tree.</li>
+  <li>In order to be used transparently as an external project, the dependent package must install a config-module which creates an import library.</li>
+</ul>
+
+<p>Let&#39;s see the CMakeLists.txt of a project which includes a package optionally as a subdirectory:</p>
+
+<pre lang="text">
+cmake_minimum_required(VERSION 3.1)
+project(subprojtest)
+
+include(${CAKE_ROOT}/Cake.cmake)
+
+option(ADD_AS_SUBPROJECT TRUE)
+
+if(ADD_AS_SUBPROJECT)
+    cake_add_subdirectory(subprojlib URL git://github.com/tamaskenez/cake-sample-subprojlib.git?depth=1)
+endif()
+
+cake_find_package(subprojlib REQUIRED
+    URL git://github.com/tamaskenez/cake-sample-subprojlib.git?depth=1)
+
+target_link_libraries(subprojtest subprojlib)</pre>
+
+<p>Depending on the value of <code>ADD_AS_SUBPROJECT</code> this CMakeLists.txt will add <em>subprojlib</em> either as an external dependency (cloned and installed in configuration-time) or as a CMake subdirectory:</p>
+
+<ul>
+  <li>If <code>ADD_AS_SUBPROJECT</code> is <code>FALSE</code> this example works just like the previous one, except that we expect <em>subprojlib</em> to provide an import library. So instead of
+
+  <pre>
+include_directories(${subprojlib_INCLUDE_DIRS})
+add_definitions(${subprojlib_DEFINITIONS})
+target_link_libraries(subprojtest ${subprojlib_LIBRARIES})</pre>
+
+  <p>it&#39;s sufficient to call only</p>
+
+  <pre>
+target_link_libraries(subprojtest subprojlib)</pre>
+  </li>
+  <li>
+  <p>If <code>ADD_AS_SUBPROJECT</code> is <code>TRUE</code> then <code>cake_add_subdirectory(subprojlib ...)</code> clones the <em>subprojlib</em> into the specified subdirectory and calls the CMake <code>add_subdirectory</code> command.</p>
+
+  <p>Later, the <code>cake_find_package(subprojlib ...)</code> detects that <em>subprojlib</em> has already been added as a subdirectory and does not attempt to clone it again and neither it calls <code>find_package</code>.</p>
+  </li>
+</ul>
+
+<p>Of course, if the <code>cake_find_package(subprojlib)</code> is in the same master <em>CMakeLists.txt</em> as the corresponding <code>cake_add_subdirectory(subprojlib)</code> command you don&#39;t really need to use <code>cake_find_package</code> at all since it will be a no-op. But usually the <code>cake_add_subdirectory</code> calls are in the master project and all <code>cake_find_package</code> calls are in the independent subprojects.</p>
+
+<h3>Specifying Dependencies</h3>
+
+<p>As we said earlier, there are three methods to specify the dependencies of a package.</p>
+
+<h4>Specifying dependencies without modifying the package&#39;s repository</h4>
+
+<p>This is the option we used with <em>libpng</em>. The <em>Cake</em> repository contains a file <code>cake-depends-db.cmake</code> which defines a package dependency database. The line which describes <em>libpng</em>&#39;s dependency, <em>zlib</em> is:</p>
+
+<pre>
+cake_depends_db_add(URL git://git.code.sf.net/p/libpng/code SCRIPT &quot;cake_pkg(INSTALL URL https://github.com/madler/zlib.git?depth=1)&quot;)</pre>
+
+<p>The command <code>cake_depends_db_add</code> adds an entry to the database for the <em>libpng</em> repository. It assigns a script which will be invoked before building <em>libpng</em>:</p>
+
+<pre>
+cake_pkg(INSTALL URL https://github.com/madler/zlib.git?depth=1)</pre>
+
+<p>Of course the script can be more complex as we can see in the next section:</p>
+
+<h4>Specifying dependencies without changing the package&#39;s CMakeLists.txt</h4>
+
+<p>In certain cases you can add a file to the library&#39;s repository but does not want to mess with its CMakeLists.txt (so it can be still be built without <em>Cake</em>). In this case you can add a file <code>cake-depends.cmake</code> into the root of the library&#39;s repository which contains the same dependency-script as above. For example, if we choose to add <code>cake-depends.cmake</code> to the <em>libpng</em> repository:</p>
+
+<pre>
+# git.code.sf.net/p/libpng/code/cake-depends.cmake
+cake_pkg(INSTALL URL https://github.com/madler/zlib.git?depth=1)</pre>
+
+<p>These dependency-script receives the build configuration variables you specify in the query part of the package URL. For example, in case of a hypothetical library which has an optional <em>SQLite</em> dependency:</p>
+
+<pre>
+cake_find_package(mylib URL https://github.com/myaccount/mylib?MYLIB_WITH_SQLITE=1)</pre>
+
+<p>The <code>cake-depends.cmake</code> dependency-script of <em>mylib</em> could be this:</p>
+
+<pre>
+# github.com/myaccount/mylib/cake-depends.cmake
+if(MYLIB_WITH_SQLITE)
+    cake_pkg(INSTALL URL https://github.com/myaccount/sqlite-cmake)
+endif()
+</pre>
+
+<p>The CMakeLists.txt of <em>mylib</em> would use the plain <code>find_package</code> and would not depend on <em>Cake</em>:</p>
+
+<pre>
+# github.com/myaccount/mylib/CMakeLists.txt
+...
+if(MYLIB_WITH_SQLITE)
+    find_package(SQLite REQUIRED)
+    add_definitions(-DHAVE_SQLITE)
+endif()
+...</pre>
+
+<h4>Specifying dependencies with <code>cake_find_package</code></h4>
+
+<p>If you don&#39;t mind modifying the library&#39;s CMakeLists.txt and that it will depend on <em>Cake</em>, the simplest and recommended method is to use <code>cake_find_package</code> instead of <code>find_package</code>. In this case neither you need an entry in <code>code-depends-db.cmake</code> nor you need to add <code>cake-depends.cmake</code> (which just duplicates the references to your dependencies). The CMakeLists.txt of the <em>mylib</em> example above would look like this:</p>
+
+<pre>
+# https://github.com/myaccount/mylib/CMakeLists.txt
+...
+include(${CAKE_ROOT}/Cake.cmake)
+...
+if(MYLIB_WITH_SQLITE)
+    cake_find_package(SQLite REQUIRED URL https://github.com/myaccount/sqlite-cmake)
+    add_definitions(-DHAVE_SQLITE)
+endif()
+...</pre>
+
+<h3><span style="color: rgb(255, 153, 0); font-size: 19px;"><em>Cake</em> Configuration Variables</span></h3>
+
+<p>When you install a package with <code>cakepkg</code> (or <code>cake_pkg</code>, <code>cake_find_package</code>), <em>Cake</em> eventually calls the <code>cmake</code> command to configure, build and install the package. The parameters <em>Cake</em> passes to <code>cmake</code> can be controlled by the <em>Cake</em> configuration variables: <code>CAKE_PKG_CMAKE_OPTIONS</code>, <code>CAKE_PKG_CMAKE_NATIVE_TOOL_OPTIONS</code>, and <code>CAKE_PKG_CONFIGURATION_TYPES</code>. You can set them in the shell environment or in your CMakeLists.txt.</p>
+
+<ul>
+  <li><code>CAKE_PKG_CMAKE_OPTIONS</code> is the most important one. This variable contains the <code>cmake</code>&#39;s command line options the package will be configured with. It usually contains a <code>-DCMAKE_INSTALL_PREFIX=&lt;...&gt;</code> definition to specify where the package will be installed to. Related <em>Cake</em>-specific directories, like local copy of the repository and build directory will be also created under this directory (under <code>${CMAKE_INSTALL_PREFIX}/var</code>).</li>
+  <li>The options in <code>CAKE_PKG_CMAKE_NATIVE_TOOL_OPTIONS</code> will be added to the end of the <code>cmake --build</code> command after the <code>&#39;--&#39;</code>.</li>
+  <li><code>CAKE_PKG_CONFIGURATION_TYPES</code> usually contains a list like <code>&quot;Debug;Release&quot;</code>. It controls the configurations the packages will be built in.</li>
+</ul>
+
+<p>As an alternative to set the <em>Cake</em> configuration variables you can also create a CMake file like this:</p>
+
+<pre>
+set(CAKE_PKG_CONFIGURATION_TYPES Debug Release)
+
+set(CAKE_PKG_CMAKE_OPTIONS
+
+    -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_LIST_DIR}/_install
+
+    -DCMAKE_PREFIX_PATH=${CMAKE_CURRENT_LIST_DIR}/_install)</pre>
+
+<p>And set the environment variable <code>CAKE_PKG_FILE</code> point to this file.</p>
+
+<h3>Roadmap</h3>
+
+<h3><span style="color: rgb(17, 17, 17); font-size: 14px;">The following features are expected to be added in the future:</span></h3>
+
+<p>- Finer control of the git-clone, git-pull, CMake config/build operations (like forced clean build, global clone depth setting).</p>
+
+<p>- Features to help managing master projects with multiple subrepositories (like googles git-repo-tool or gclient)</p>
+
+<p>- zip/tgz, Mercurial and SVN support</p>
+
+<h3><span style="font-size: 30px;">History</span></h3>
+
+<p>This is the initial revision.</p>
+
+<p></p>

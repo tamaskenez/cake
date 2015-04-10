@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# This sample demonstrates how to install a package (zlib) from the command line (or script)
+
+# path for cakepkg and cake commands
+export PATH=${PWD}/../..:$PATH
+
+# the path to the cake config file. Will be used by cakepkg (and cake)
+# to construct the cmake command lines
+export CAKE_CONFIG_FILE=${PWD}/cakecfg.cmake
+
+set -ex
+
+# clone and build the 'install' target of the zlib package
+cakepkg INSTALL URL https://github.com/madler/zlib.git?depth=1
+
+# the CMakeLists.txt calls find_package(ZLIB) and reports the result
+cmake -H. -B_build/01_cmd_zlib -DCMAKE_PREFIX_PATH=$PWD/_install
+
+

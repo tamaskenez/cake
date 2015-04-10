@@ -4,7 +4,7 @@ macro(update_binary_dir_prefix _ubdp_v _updb_source)
 		set(CAKE_BINARY_DIR_PREFIX ${_ubdp_v})
 	else()
 		if(NOT "${CAKE_BINARY_DIR_PREFIX}" STREQUAL "${_ubdp_v}")
-			cake_message(FATAL_ERROR "${_updb_source} is trying to override the value of CAKE_BINARY_DIR_PREFIX to ${_ubdp_v} which is already set to ${CAKE_BINARY_DIR_PREFIX}")
+			message(FATAL_ERROR "[cake] ${_updb_source} is trying to override the value of CAKE_BINARY_DIR_PREFIX to ${_ubdp_v} which is already set to ${CAKE_BINARY_DIR_PREFIX}")
 		endif()
 	endif()
 endmacro()
@@ -15,7 +15,7 @@ macro(update_binary_dir _ubdp_v _updb_source)
 		set(CAKE_BINARY_DIR ${_ubdp_v})
 	elseif((IS_ABSOLUTE "${CAKE_BINARY_DIR}" AND IS_ABSOLUTE "${_ubdp_v}") OR (NOT IS_ABSOLUTE "${CAKE_BINARY_DIR}" AND NOT IS_ABSOLUTE "${_ubdp_v}"))
 		if(NOT "${CAKE_BINARY_DIR}" STREQUAL "${_ubdp_v}")
-			cake_message(FATAL_ERROR "${_updb_source} is trying to override the value of CAKE_BINARY_DIR to ${_ubdp_v} which is already set to ${CAKE_BINARY_DIR}")
+			message(FATAL_ERROR "[cake] ${_updb_source} is trying to override the value of CAKE_BINARY_DIR to ${_ubdp_v} which is already set to ${CAKE_BINARY_DIR}")
 		endif()
 	endif()
 endmacro()
@@ -26,14 +26,14 @@ macro(update_generate_always _ubdp_v _updb_source)
 		set(CAKE_GENERATE_ALWAYS ${_ubdp_v})
 	else()
 		if((CAKE_GENERATE_ALWAYS AND NOT "${_ubdp_v}") OR (NOT CAKE_GENERATE_ALWAYS AND "${_ubdp_v}"))
-			cake_message(FATAL_ERROR "${_updb_source} is trying to override the value of CAKE_GENERATE_ALWAYS to ${_ubdp_v} which is already set to ${CAKE_GENERATE_ALWAYS}")
+			message(FATAL_ERROR "[cake] ${_updb_source} is trying to override the value of CAKE_GENERATE_ALWAYS to ${_ubdp_v} which is already set to ${CAKE_GENERATE_ALWAYS}")
 		endif()
 	endif()
 endmacro()
 
 set(_load_module_core_vars
 	CAKE_OPTIONS
-	CAKE_NATIVE_TOOL_OPTIONS
+	CAKE_CMAKE_NATIVE_TOOL_OPTIONS
 	CAKE_MODULE_PATH)
 
 function(load_module_core _lmc_path)
@@ -56,14 +56,14 @@ macro(load_module _lm_path)
 	endforeach()
 	load_module_core("${_lm_path}")
 	list(APPEND CAKE_OPTIONS ${_lmc_CAKE_OPTIONS})
-	list(APPEND CAKE_NATIVE_TOOL_OPTIONS ${_lmc_CAKE_NATIVE_TOOL_OPTIONS})
+	list(APPEND CAKE_CMAKE_NATIVE_TOOL_OPTIONS ${_lmc_CAKE_CMAKE_NATIVE_TOOL_OPTIONS})
 	list(APPEND CAKE_MODULE_PATH ${_lmc_CAKE_MODULE_PATH})
 endmacro()
 
 set(_load_config_core_vars
 	CAKE_BINARY_DIR_PREFIX
 	CAKE_OPTIONS
-	CAKE_NATIVE_TOOL_OPTIONS
+	CAKE_CMAKE_NATIVE_TOOL_OPTIONS
 	CAKE_GENERATE_ALWAYS
 	CAKE_MODULE_PATH)
 
@@ -88,7 +88,7 @@ macro(load_config2 _lm_path)
 	load_config_core("${_lm_path}")
 	foreach(i ${_load_config_core_vars})
 		if(DEFINED _lmc_${i})
-			if(i MATCHES "^(CAKE_OPTIONS|CAKE_NATIVE_TOOL_OPTIONS|CAKE_MODULE_PATH)$")
+			if(i MATCHES "^(CAKE_OPTIONS|CAKE_CMAKE_NATIVE_TOOL_OPTIONS|CAKE_MODULE_PATH)$")
 				list(APPEND ${i} ${_lmc_${i}})
 			elseif(NOT DEFINED ${i})
 				set(${i} ${_lmc_${i}})
@@ -122,10 +122,10 @@ macro(load_modules _lm_log)
 			endforeach()
 		endif()
 		if(NOT EXISTS "${m_abs}")
-			cake_message(FATAL_ERROR "Module '${m_cmake}' not found.")
+			message(FATAL_ERROR "[cake] Module '${m_cmake}' not found.")
 		endif()
 		if(IS_DIRECTORY "${m_abs}")
-			cake_message(FATAL_ERROR "Module path '${m_cmake}' is a directory.")
+			message(FATAL_ERROR "[cake] Module path '${m_cmake}' is a directory.")
 		endif()
 		if("${_lm_log}")
 			get_filename_component(m_dir "${m_abs}" PATH)
@@ -147,7 +147,7 @@ endmacro()
 # - collects the new modules from -m options
 # - sets parent scope opt_modules
 function(collect_modules)
-	# this function always starts with the unmodified variables, like CAKE_OPTIONS, CAKE_NATIVE_TOOL_OPTIONS
+	# this function always starts with the unmodified variables, like CAKE_OPTIONS, CAKE_CMAKE_NATIVE_TOOL_OPTIONS
 	# it will modify only the opt_modules of the parent scope
 
 	# load modules known so far
@@ -170,7 +170,7 @@ function(collect_modules)
 		endif()
 	endforeach()
 	if(last_switch)
-		cake_message(FATAL_ERROR "Last option '${last_switch}' missing parameter.")
+		message(FATAL_ERROR "[cake] Last option '${last_switch}' missing parameter.")
 	endif()
 
 	set(opt_modules ${opt_modules} PARENT_SCOPE)
@@ -191,7 +191,7 @@ macro(effective_cake_link_binary_dir _e)
 	elseif("${CAKE_LINK_BINARY_DIR}" MATCHES "^(inside|beside)$")
 		set(${_e} ${CAKE_LINK_BINARY_DIR})
 	else()
-		cake_message(FATAL_ERROR "Invalid CAKE_LINK_BINARY_DIR: ${CAKE_LINK_BINARY_DIR}")
+		message(FATAL_ERROR "[cake] Invalid CAKE_LINK_BINARY_DIR: ${CAKE_LINK_BINARY_DIR}")
 	endif()
 endmacro()
 
@@ -210,7 +210,7 @@ function(update_source_cmakecfg_with_binary_dir)
 			endif()
 			set(f ${fb})
 		else()
-			cake_message(FATAL_ERROR "Internal error, eclbd: ${eclbd}.")
+			message(FATAL_ERROR "[cake] Internal error, eclbd: ${eclbd}.")
 		endif()
 		file(WRITE "${f}" "${CAKE_BINARY_DIR}")
 	endif()

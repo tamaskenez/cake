@@ -1,0 +1,63 @@
+#!/bin/bash
+
+# This sample demonstrates how to use the same library as an external dependency
+# (fetched and built in the configuration-time of the master project) and as
+# a subproject (added with CMake's add_subdirectory)
+#
+# The library (subprojlib) is cloned from another repository into this master project.
+# It has an optional dependency, zlib, so you can learn how to use that feature, too.
+#
+# Subprojlib's CMakeLists.txt does not use Cake. Its optional dependency information
+# (whether it uses zlib or not) is specified in a separate file, cake-depends.cmake
+# in the root of the subprojlib repository,
+# see there: https://github.com/tamaskenez/cake-sample-subprojlib-cake-depends
+
+set -ex
+
+# path for cakepkg and cake commands
+export PATH=${PWD}/../..:$PATH
+
+# the path to the cake config file. Will be used by cakepkg (and cake)
+# to construct the cmake command lines
+export CAKE_CONFIG_FILE=${PWD}/cakecfg.cmake
+
+# Play with the following build settings. You can execute
+# ./clear remove previous build and install files before changing
+# the build settings.
+#
+# - SUBPROJLIB_WITH_ZLIB controls to build subprojlib with or without zlib.
+# - SUBPROJLIB_AS_SUBDIRECTORY controls to include subprojlib as a subproject (in a subdirectory)
+#   or as an external project, built in configuration-time
+# - SUBPROJLIB_WITH_CAKE_FIND_PACKAGE controls the way subprojlib publishes its dependency information (zlib).
+#   There are two ways to do this. They're demonstrated on the 'master' and the 'master_cfp' branches
+#   of the subprojlib repository. So this option controls which branch to check out:
+#   1. if SUBPROJLIB_WITH_CAKE_FIND_PACKAGE=0 then the master project will check out the 'master' branch of
+#      the subprojlib repository. On this branch, subprojlib's CMakeLists.txt uses plain find_package()
+#      commands. It also contains a cake-depends.cmake script which installs zlib if needed
+build_settings="-DSUBPROJLIB_WITH_ZLIB=0 -DSUBPROJLIB_AS_SUBDIRECTORY=0"
+
+# In case you need to change the CMake generator, set the
+# variable CMAKE_GENERATOR here or before running this script
+# It's value will be also used in the cakecfg.cmake script so
+# external packages (zlib, subprojlib) will be built with that generator.
+
+# export CMAKE_GENERATOR=XCode
+
+if [[ $CMAKE_GENERATOR ]]; then
+  generator_opt="-G \"$CMAKE_GENERATOR\""
+else
+  generator_opt=""
+fi
+
+cmake -H. -B_build/04_subproj \
+  -DCAKE_ROOT=$PWD/../..
+  -DCMAKE_PREFIX_PATH=$PWD/_install -DCMAKE_INSTALL_PREFIX=$PWD/_install \
+  $build_settings $generator_opt
+
+cmake --build _build/04_subproj --target install
+
+./_install/bin/sample04
+
+
+
+

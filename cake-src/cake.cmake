@@ -1,25 +1,23 @@
 #     cake [options] <cmake-source-dir>|<cmake-binary-dir>
 #
-# You can specify either cmake-source-dir or cmake-binary dir
-# or both.
+# You can specify either <cmake-source-dir> or <cmake-binary dir>
+# or both. If you specify <cmake-source-dir> only then the <cmake-binary-dir>
+# will be automatically determined from the CAKE_BINARY_DIR_PREFIX
+# environment variable. Alternatively you can specify this and
+# other Cake configuration variable in the file given in the CAKE_FThe cmake-source-dir must contain CMakeLists.txt. 
 #
-# The cmake-source-dir must contain CMakeLists.txt. It may
-# contain a .cmake_binary_dir file which contains the location
-# of binary dir. The other options is that <source-dir>.cmake_binary_dir
-# contains the name of the associated binary dir. This is set automatically
-# in the first run of cake. The automatic creation of the .cmake_binary_dir
-# files is controlled by the CAKE_LINK_BINARY_DIR cake setting, which
-# can be set in a .cakecfg.cmake file (see later).
-#
-# Another cake config setting is the CAKE_BINARY_DIR_PREFIX.
-# It controls the location of the cmake-binary-dir if no
-# cmake-binary-dir is specified on the first run of cake/cmake
-# on a source directory. In this case the last component of the
-# cake-source-dir path will be appended to the value of CAKE_BINARY_DIR_PREFIX.
-# If no CAKE_BINARY_DIR_PREFIX is set in a config file or environment
+# If no cmake-binary-dir is given then the Cake configuration variable
+# CAKE_BINARY_DIR_PREFIX controls the location of the cmake-binary-dir.
+# In that case the last component of the cake-source-dir path will be
+# appended to the value of CAKE_BINARY_DIR_PREFIX.
+# If no CAKE_BINARY_DIR_PREFIX is set in the configuration file or environment
 # variable then the binary dir will be created in the system temporary dir.
+# For more information about the Cake configuration variables see Modules/CakeLoadConfig.cmake
 #
-# Standard CMake generator options (see cmake documentation):
+# [options] can be either the standard CMake configuration options (see cmake documentation)
+# or Cake-specific options.
+#
+# Cmake configuration options:
 #
 #     -C <initial-cache>
 #     -D <var>[:<type>]=<value>
@@ -29,24 +27,13 @@
 #     -W[no-]dev
 #     -N
 #
-# Note: all parametrized options can be written in one word,
+# Note: all parametrized options can also be written in one word,
 # without space-separator: '-D key=val' and '-Dkey=val'
 #
-# Extra options for the generator step:
+# Cake-specific options for the generator step:
 #
 #     --rm-bin
 #         remove the binary dir before calling cmake
-#     -m <cmake-script>
-#         path to a cmake script (cake module) containing further
-#         options. If relative it will be searched
-#         on the paths listed in CAKE_MODULE_PATH.
-#         The cake module may set the following CMake variables:
-#             CAKE_OPTIONS, CAKE_NATIVE_TOOL_OPTIONS, CAKE_MODULE_PATH
-#         - The value of the CAKE_OPTIONS, CAKE_NATIVE_TOOL_OPTIONS,
-#           CAKE_MODULE_PATH will be appended to the list set by
-#           other modules, config files and on the cake command line.
-#
-# Other options:
 #     -c <cfg>, --config <cfg>
 #         specifies which configuration to generate
 #         (for single-config generators like make)
@@ -85,10 +72,11 @@
 # The long form can be written with space instead of '=':
 # '--target mytarget' and '--target=mytarget'
 
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.2)
 
-include(${CMAKE_CURRENT_LIST_DIR}/public_vars.cmake)
-include(${CMAKE_CURRENT_LIST_DIR}/utils.cmake)
+get_filename_component(CAKE_ROOT ${CMAKE_CURRENT_LIST_DIR}/.. ABSOLUTE)
+
+include(${CAKE_ROOT}/Modules/CakePrivateUtils.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/private.cmake)
 
 unset(opt_source_dir) # source dir specified on the command line
@@ -109,22 +97,19 @@ unset(need_build_step) # if -b or -t was specified
 # CMAKE_ARGV0: cmake.exe (full path)
 # CMAKE_ARGV[x]: -P, x >= 1
 # CMAKE_ARGV[x+1]: path to this file
-# CMAKE_ARGV[x+2]: sessionid
-# CMAKE_ARGV[x+3]: first actual arg
+# CMAKE_ARGV[x+2]: first actual arg
 # CMAKE_ARGV[CMAKE_ARGC-1]: last actual arg
 math(EXPR last_arg_idx "${CMAKE_ARGC}-1")
 foreach(i RANGE 1 ${last_arg_idx})
 	if("${CMAKE_ARGV${i}}" STREQUAL "-P")
 		math(EXPR this_file_path_idx "${i}+1")
-		math(EXPR session_arg_idx "${i}+2")
-		math(EXPR first_arg_idx "${i}+3")
+		math(EXPR first_arg_idx "${i}+2")
 		set(this_file_path "${CMAKE_ARGV${this_file_path_idx}}")
 		break()
 	endif()
 endforeach()
 
 # parse args
-set(sessionid ${CMAKE_ARGV${session_arg_idx}})
 
 if(first_arg_idx GREATER last_arg_idx) # no args after cmake ... -P <path>
 	# print help
@@ -140,38 +125,52 @@ if(first_arg_idx GREATER last_arg_idx) # no args after cmake ... -P <path>
 	return()
 endif()
 
-# parse command-line options, mostly
-# sort them to cake_options, cake_native_tool_options, opt_ide, opt_gui, need_build_step
+unset(CAKE_ARGS)
+foreach(i RANGE ${first_arg_idx} ${last_arg_idx})
+  list(APPEND CAKE_ARGS ${CMAKE_ARGV${i}})
+endforeach()
+
+list(GET CAKE_ARGS 0 CAKE_ARGV0)
+if("${CAKE_ARGV0}" STREQUAL "pkg")
+	set(CAKE_PKG_ARGS ${CAKE_ARGS})
+	list(REMOVE_AT CAKE_PKG_ARGS 0)
+	include(${CMAKE_CURRENT_LIST_DIR}/cake_pkg.cmake)
+	return()
+endif()
+
+
+# parse command-line options
+# group them to cake_options, cake_native_tool_options, opt_ide, opt_gui, need_build_step
 foreach(i RANGE ${first_arg_idx} ${last_arg_idx})
 	set(a "${CMAKE_ARGV${i}}") # current argument
 	if(past_double_dash)
 		list(APPEND cake_native_tool_options "${a}")
-	elseif(a MATCHES "^--$")
+	elseif(a STREQUAL "--")
 		if(last_switch)
-			cake_message(FATAL_ERROR "Missing argument after '${last_switch}'")
+			message(FATAL_ERROR "[cake] Missing argument after '${last_switch}'")
 		else()
 			set(past_double_dash 1)
 		endif()
 	elseif(last_switch)
-		if(last_switch MATCHES "^(-C|-D|-U|-G|-T|-m|-c|--config|-t|--target)$")
+		if(last_switch MATCHES "^(-C|-D|-U|-G|-T|-c|--config|-t|--target)$")
 			list(APPEND cake_options ${last_switch} "${a}")
 		else()
-			cake_message(FATAL_ERROR "Internal error, invalid last_switch: '${last_switch}'")
+			message(FATAL_ERROR "[cake] Internal error, invalid last_switch: '${last_switch}'")
 		endif()
 		unset(last_switch)
 	else()
-		if(a MATCHES "^(-C|-D|-U|-G|-T|-c|--config|-t|--target|-m)$")
+		if(a MATCHES "^(-C|-D|-U|-G|-T|-c|--config|-t|--target)$")
 			set(last_switch "${a}")
-		elseif(a MATCHES "^(-C|-D|-U|-G|-T|-m|-c|--config=|-t|--target=)(.*)$")
+		elseif(a MATCHES "^(-C|-D|-U|-G|-T|-c|--config=|-t|--target=)(.*)$")
 			string(REPLACE ";" "\;" a "${a}")
 			list(APPEND cake_options "${a}")
 		elseif(a MATCHES "^(-W(no-)?dev|-N|--rm-bin|-R|--debug-release|-n|--install|--clean-first|--use-stderr)$")
 			list(APPEND cake_options "${a}")
-		elseif(a MATCHES "^--ide$")
+		elseif(a STREQUAL "--ide")
 			set(opt_ide 1)
-		elseif(a MATCHES "^--gui$")
+		elseif(a STREQUAL "--gui")
 			set(opt_gui 1)
-		elseif(a MATCHES "^-b|--build$")
+		elseif(a MATCHES "^(-b|--build)$")
 			set(need_build_step 1)
 		else()
 			if(EXISTS ${a}/CMakeLists.txt)
@@ -182,8 +181,9 @@ foreach(i RANGE ${first_arg_idx} ${last_arg_idx})
 		endif()
 	endif()
 endforeach()
+
 if(last_switch)
-	cake_message(FATAL_ERROR "Last option '${last_switch}' missing parameter.")
+	message(FATAL_ERROR "[cake] Last option '${last_switch}' missing parameter.")
 endif()
 
 # validate source and bin dir args
@@ -191,28 +191,18 @@ list(LENGTH opt_source_dir ls)
 list(LENGTH opt_binary_dir lb)
 math(EXPR lsb "${ls} + ${lb}")
 if(lsb EQUAL 0)
-	cake_message(FATAL_ERROR "No directory specified, specify either source or binary dir (or both).")
+	message(FATAL_ERROR "[cake] No directory specified, specify either source or binary dir (or both).")
 endif()
 if(ls GREATER 1)
-	cake_message(FATAL_ERROR "Multiple source directories specified.")
+	message(FATAL_ERROR "[cake] Multiple source directories specified.")
 endif()
 if(lb GREATER 1)
-	cake_message(FATAL_ERROR "Multiple binary directories specified.")
+	message(FATAL_ERROR "[cake] Multiple binary directories specified.")
 endif()
-
 
 unset(cake_source_dir)
 if(opt_source_dir)
 	get_filename_component(cake_source_dir "${opt_source_dir}" ABSOLUTE)
-	# get the binary dir if not given on command line
-	if(NOT opt_binary_dir)
-		foreach(i ${opt_source_dir}/.cmake_binary_dir ${opt_source_dir}.cmake_binary_dir)
-			if(EXISTS ${i})
-				file(READ ${i} CAKE_BINARY_DIR)
-				break()
-			endif()
-		endforeach()
-	endif()
 endif()
 
 unset(binary_dir_from_args)
@@ -221,93 +211,39 @@ if(opt_binary_dir)
 	if(NOT opt_source_dir)
 		# retrieve source dir from CMakeCache.txt
 		if(NOT EXISTS ${CAKE_BINARY_DIR}/CMakeCache.txt)
-			cake_message(FATAL_ERROR "No source dir specified and binary dir does not contain CMakeLists.txt to obtain the associated source dir.")
+			message(FATAL_ERROR "[cake] No source dir specified and binary dir (${CAKE_BINARY_DIR}) does not contain CMakeCache.txt to obtain the associated source dir.")
 		endif()
 		file(STRINGS ${CAKE_BINARY_DIR}/CMakeCache.txt v REGEX "CMAKE_HOME_DIRECTORY")
 		string(REGEX MATCH "^[\t ]*CMAKE_HOME_DIRECTORY:INTERNAL=(.*)$" v ${v})
 		set(cake_source_dir ${CMAKE_MATCH_1})
 		if(NOT cake_source_dir)
-			cake_message(FATAL_ERROR "No source dir specified, and no CMAKE_HOME_DIRECTORY found when parsing ${CAKE_BINARY_DIR}/CMakeCache.txt.")
+			message(FATAL_ERROR "[cake] No source dir specified, and no CMAKE_HOME_DIRECTORY found when parsing ${CAKE_BINARY_DIR}/CMakeCache.txt.")
 		endif()
 		if(NOT EXISTS "${cake_source_dir}")
-			cake_message(FATAL_ERROR "No source dir specified, and parsing CMAKE_HOME_DIRECTORY from ${CAKE_BINARY_DIR}/CMakeCache.txt yielded a non-existent source dir: '${cake_source_dir}'.")
+			message(FATAL_ERROR "[cake] No source dir specified, and parsing CMAKE_HOME_DIRECTORY from ${CAKE_BINARY_DIR}/CMakeCache.txt yielded a non-existent source dir: '${cake_source_dir}'.")
 		endif()
 		if(NOT EXISTS "${cake_source_dir}/CMakeLists.txt")
-			cake_message(FATAL_ERROR "No source dir specified, and parsing CMAKE_HOME_DIRECTORY from ${CAKE_BINARY_DIR}/CMakeCache.txt yielded a non-existent source dir: '${cake_source_dir}' where no CMakeLists.txt can be found.")
+			message(FATAL_ERROR "[cake] No source dir specified, and parsing CMAKE_HOME_DIRECTORY from ${CAKE_BINARY_DIR}/CMakeCache.txt yielded the source dir '${cake_source_dir}' where no CMakeLists.txt can be found.")
 		endif()
 	endif()
 	set(binary_dir_from_args 1)
 endif()
 
 if(NOT EXISTS ${cake_source_dir}/CMakeLists.txt)
-	cake_message(FATAL_ERROR "Internal error: at this point we should have a valid cake_source_dir")
+	message(FATAL_ERROR "[cake] Internal error: at this point we should have a valid cake_source_dir")
 endif()
 
 cake_message(STATUS "Source dir: '${cake_source_dir}'")
 
-# load defaults
-include(${CAKE_ROOT}/src/cakecfg_default.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/set_cake_tmp_dir.cmake)
 
 # load config from env vars
-foreach(i CAKE_BINARY_DIR_PREFIX CAKE_GENERATE_ALWAYS CAKE_LINK_BINARY_DIR)
-	if(NOT "$ENV{${i}}" STREQUAL "")
-		set(${i} "$ENV{${i}}")
-	endif()
-endforeach()
+include(${CAKE_ROOT}/Modules/CakeLoadConfig.cmake)
 
-if(NOT WIN32 OR DEFINED ENV{MSYSTEM})
-	set(s UNIX)
-else()
-	set(s WINDOWS)
-endif()
-separate_arguments(env_cake_options_separated ${s}_COMMAND "$ENV{CAKE_OPTIONS}")
-list(APPEND CAKE_OPTIONS ${env_cake_options_separated})
-list(APPEND CAKE_NATIVE_TOOL_OPTIONS $ENV{CAKE_NATIVE_TOOL_OPTIONS})
-list(APPEND CAKE_MODULE_PATH $ENV{CAKE_MODULE_PATH})
-
-# load configs from the source dir and parents of it
-set(i ${cake_source_dir})
-set(cfg_source source-directory)
-while(1)
-	load_config("${i}" ${cfg_source})
-	set(cfg_source directory)
-	get_filename_component(next "${i}" PATH)
-	if(i STREQUAL next OR NOT IS_DIRECTORY ${i})
-		break()
-	endif()
-	set(i ${next})
-endwhile()
-
-# load user config
-unset(home)
-if(IS_DIRECTORY "$ENV{HOME}")
-	set(home "$ENV{HOME}")
-elseif(IS_DIRECTORY "$ENV{HOMEDRIVE}$ENV{HOMEPATH}")
-	file(TO_CMAKE_PATH "$ENV{HOMEDRIVE}$ENV{HOMEPATH}" home)
-endif()
-if(home)
-	load_config("${home}" user)
-endif()
-
-# combine the options from the .cakecfg files with the ones
-# specified on the command line
+set(CAKE_OPTIONS "${CAKE_CMAKE_OPTIONS}")
 list(APPEND CAKE_OPTIONS "${cake_options}")
-list(APPEND CAKE_NATIVE_TOOL_OPTIONS ${cake_native_tool_options})
-
-unset(opt_modules)
-
-# load modules in multiple passes (a module can load another module)
-while(1)
-	list(LENGTH opt_modules opt_modules_size_before)
-	collect_modules()
-	list(LENGTH opt_modules opt_modules_size_after)
-	if(opt_modules_size_after EQUAL opt_modules_size_before)
-		break()
-	endif()
-endwhile()
-
-# we have a final list of opt_modules, load them
-load_modules(TRUE)
+set(CAKE_NATIVE_TOOL_OPTIONS "${CAKE_CMAKE_NATIVE_TOOL_OPTIONS}")
+list(APPEND CAKE_NATIVE_TOOL_OPTIONS "${cake_native_tool_options}")
 
 # initialize variables for parsing the options in CAKE_OPTIONS
 
@@ -317,7 +253,6 @@ unset(opt_generate) # options for the generation step
 unset(opt_targets) # list specific targets to build (collected list of parameters to -t|--target)
 unset(opt_configs) # configs to generate or build (Debug, Release, etc..) (collected list of parameters to -c|--config)
 unset(opt_rm_bin) # --rm-bin was specified
-unset(opt_modules2) # collect opt_modules again after we loaded the modules (will be ignored)
 
 # parse CAKE_OPTIONS
 # also remember the last value of -G and -DCMAKE_BUILD_TYPE options
@@ -328,23 +263,21 @@ foreach(a ${CAKE_OPTIONS})
 	if(last_switch)
 		if(last_switch MATCHES "^(-C|-D|-U|-G|-T)$")
 			list(APPEND opt_generate ${last_switch} "${a}")
-			if(last_switch MATCHES "^-G$")
+			if(last_switch STREQUAL "-G")
 				set(cmake_generator_from_command_line "${a}")
-			elseif(last_switch MATCHES "^-D$" AND a MATCHES "^CMAKE_BUILD_TYPE(:.*)?=(.*)$")
+			elseif(last_switch STREQUAL "-D" AND a MATCHES "^CMAKE_BUILD_TYPE(:.*)?=(.*)$")
 				set(cmake_build_type ${CMAKE_MATCH_2})
 			endif()
-		elseif(last_switch MATCHES "^-m$")
-			list(APPEND opt_modules2 "${a}")
 		elseif(last_switch MATCHES "^(-c|--config)$")
 			handle_opt_config("${a}")
 		elseif(last_switch MATCHES "^(-t|--target)$")
 			handle_opt_target("${a}")
 		else()
-			cake_message(FATAL_ERROR "Internal error, invalid last_switch: '${last_switch}'")
+			message(FATAL_ERROR "[cake] Internal error, invalid last_switch: '${last_switch}'")
 		endif()
 		unset(last_switch)
 	else()
-		if(a MATCHES "^(-C|-D|-U|-G|-T|-c|--config|-t|--target|-m)$")
+		if(a MATCHES "^(-C|-D|-U|-G|-T|-c|--config|-t|--target)$")
 			set(last_switch ${a})
 		elseif(a MATCHES "^(-C|-D|-U|-G|-T)(.*)$")
 			string(REPLACE ";" "\;" a "${a}")
@@ -354,8 +287,6 @@ foreach(a ${CAKE_OPTIONS})
 			elseif(a MATCHES "^-DCMAKE_BUILD_TYPE(:.*)=(.*)$")
 				set(cmake_build_type "${CMAKE_MATCH_2}")
 			endif()
-		elseif(a MATCHES "^-m(.*)$")
-			list(APPEND opt_modules2 "${CMAKE_MATCH_1}")
 		elseif(a MATCHES "^(-W(no-)?dev|-N)$")
 			list(APPEND opt_generate "${a}")
 		elseif(a MATCHES "^--rm-bin$")
@@ -372,12 +303,12 @@ foreach(a ${CAKE_OPTIONS})
 		elseif(a MATCHES "^(--clean-first|--use-stderr)$")
 			list(APPEND opt_build "${a}")
 		else()
-			cake_message(FATAL_ERROR "Invalid option: '${a}'")
+			message(FATAL_ERROR "[cake] Invalid option: '${a}'")
 		endif()
 	endif()
 endforeach()
 if(last_switch)
-	cake_message(FATAL_ERROR "Last option '${last_switch}' missing parameter.")
+	message(FATAL_ERROR "[cake] Last option '${last_switch}' missing parameter.")
 endif()
 
 
@@ -390,7 +321,7 @@ endif()
 
 if(cmake_build_type)
 	if(opt_configs)
-		cake_message(FATAL_ERROR "Both CMAKE_BUILD_TYPE and -c|--config specified. Set only one of them.")
+		message(FATAL_ERROR "[cake] Both CMAKE_BUILD_TYPE and -c|--config specified. Set only one of them.")
 	else()
 		set(opt_configs "${cmake_build_type}")
 	endif()
@@ -401,7 +332,7 @@ if(NOT CAKE_BINARY_DIR)
 	get_filename_component(cake_source_dir_name "${cake_source_dir}" NAME)
 	if(NOT IS_ABSOLUTE "${CAKE_BINARY_DIR_PREFIX}")
 		if(NOT CAKE_TMP_DIR)
-			cake_message(FATAL_ERROR "Temporary dir not found for generating binary dir. Specify an absolute CAKE_BINARY_DIR_PREFIX specify the binary dir on the command line.")
+			message(FATAL_ERROR "[cake] Temporary dir not found for generating binary dir. Specify an absolute CAKE_BINARY_DIR_PREFIX specify the binary dir on the command line.")
 		endif()
 		if(CAKE_BINARY_DIR_PREFIX)
 			set(CAKE_BINARY_DIR_PREFIX ${CAKE_TMP_DIR}/${CAKE_BINARY_DIR_PREFIX})
@@ -426,26 +357,26 @@ else()
 	set(cmake_generator ${cmake_generator_from_command_line})
 endif()
 
-if(cmake_generator AND cmake_generator MATCHES "Visual Studio|Xcode")
+if(cmake_generator AND cmake_generator MATCHES "^(Visual Studio|Xcode)")
 	set(ide_generator 1)
 else()
 	set(ide_generator 0)
 endif()
 
 if(opt_ide AND NOT ide_generator)
-	cake_message(FATAL_ERROR "No IDE generator specified for option '--ide'.")
+	message(FATAL_ERROR "[cake] No IDE generator specified for option '--ide'.")
 endif()
 
 list(LENGTH opt_configs config_count)
 if(config_count GREATER 1)
 	if(binary_dir_from_args)
-		cake_message(FATAL_ERROR "Multiple configs specified for a single binary dir")
+		message(FATAL_ERROR "[cake] Multiple configs specified for a single binary dir")
 	endif()
 	if(opt_gui)
-		cake_message(FATAL_ERROR "Multiple configs specified with --gui")
+		message(FATAL_ERROR "[cake] Multiple configs specified with --gui")
 	endif()
 	if(opt_ide)
-		cake_message(FATAL_ERROR "Multiple configs specified with --ide")
+		message(FATAL_ERROR "[cake] Multiple configs specified with --ide")
 	endif()
 endif()
 
@@ -492,15 +423,15 @@ if(need_generate_step)
 				unset(cbt)
 			endif()
 			set(cmake_command_line
-				cmake
 				"-H${cake_source_dir}"
 				"-B${binary_dir}"
+				"-DCAKE_ROOT=${CAKE_ROOT}"
 				"${opt_generate}"
 				"${cbt}"
 			)
-			list_to_command_line_like_string(s "${cmake_command_line}")
-			cake_message(STATUS "${s}")
-			execute_process(COMMAND
+			cake_list_to_command_line_like_string(s "${cmake_command_line}")
+			cake_message(STATUS "cmake ${s}")
+			execute_process(COMMAND ${CMAKE_COMMAND}
 				${cmake_command_line}
 				RESULT_VARIABLE r
 				ERROR_VARIABLE e
@@ -510,7 +441,7 @@ if(need_generate_step)
 				cake_message("${e}")
 			endif()
 			if(r)
-				cake_message(FATAL_ERROR "CMake generate step failed, result: ${r}.")
+				message(FATAL_ERROR "[cake] CMake generate step failed, result: ${r}.")
 			endif()
 		endif()
 	endforeach()
@@ -524,43 +455,43 @@ if(opt_gui)
 	else()
 		set(command_line cmake-gui "${config_list.1.binary_dir}")
 	endif()
-	list_to_command_line_like_string(s ${command_line})
+	cake_list_to_command_line_like_string(s ${command_line})
 	cake_message(STATUS ${s})
 	execute_process(COMMAND ${command_line} RESULT_VARIABLE r)
 	if(r)
-		cake_message(FATAL_ERROR "result: ${r}")
+		message(FATAL_ERROR "[cake] result: ${r}")
 	endif()
 endif()
 
 # start IDE
 if(opt_ide)
 	if(NOT ide_generator)
-		cake_message(FATAL_ERROR "--ide specified for non-ide generator.")
+		message(FATAL_ERROR "[cake] --ide specified for non-ide generator.")
 	endif()
-	if(cmake_generator MATCHES "Visual Studio")
+	if(cmake_generator MATCHES "^Visual Studio")
 		file(GLOB v ${CAKE_BINARY_DIR}/*.sln)
 		if(v)
 			set(command_line cmd /C "${v}")
 		else()
-			cake_message(FATAL_ERROR "Can't find *.sln file in '${CAKE_BINARY_DIR}'")
+			message(FATAL_ERROR "[cake] Can't find *.sln file in '${CAKE_BINARY_DIR}'")
 		endif()
-	elseif(cmake_generator MATCHES "Xcode")
+	elseif(cmake_generator MATCHES "^Xcode")
 		file(GLOB v ${CAKE_BINARY_DIR}/*.xcodeproj)
 		if(v)
 			set(command_line open "${v}")
 		else()
-			cake_message(FATAL_ERROR "Can't find *.xcodeproj file in '${CAKE_BINARY_DIR}'")
+			message(FATAL_ERROR "[cake] Can't find *.xcodeproj file in '${CAKE_BINARY_DIR}'")
 		endif()
 	else()
-		cake_message(FATAL_ERROR "Don't know how to start IDE for generator '${cmake_generator}'")
+		message(FATAL_ERROR "[cake] Don't know how to start IDE for generator '${cmake_generator}'")
 	endif()
 
-	list_to_command_line_like_string(s ${command_line})
+	cake_list_to_command_line_like_string(s ${command_line})
 	cake_message(STATUS "${s}")
 	execute_process(COMMAND ${command_line}
 		RESULT_VARIABLE r)
 	if(r)
-		cake_message(FATAL_ERROR "error: ${c}")
+		message(FATAL_ERROR "[cake] error: ${c}")
 	endif()
 endif()
 
@@ -585,15 +516,16 @@ if(need_build_step)
 				set(target_option --target ${t})
 			endif()
 			set(cmake_command_line
-				cmake
 				--build "${binary_dir}"
 				${target_option}
 				${config_option}
 				${opt_build}
+				--
+				${CAKE_NATIVE_TOOL_OPTIONS}
 			)
-			list_to_command_line_like_string(s ${cmake_command_line})
-			cake_message(STATUS "${s}")
-			execute_process(COMMAND
+			cake_list_to_command_line_like_string(s ${cmake_command_line})
+			cake_message(STATUS "cmake ${s}")
+			execute_process(COMMAND ${CMAKE_COMMAND}
 				${cmake_command_line}
 				RESULT_VARIABLE r
 				ERROR_VARIABLE e
@@ -603,11 +535,8 @@ if(need_build_step)
 				cake_message("${e}")
 			endif()
 			if(r)
-				cake_message(FATAL_ERROR "CMake build step failed, result: ${r}.")
+				message(FATAL_ERROR "[cake] CMake build step failed, result: ${r}.")
 			endif()
 		endforeach()
 	endforeach()
 endif()
-
-# update source dir .cmakecfg.cmake with the binary dir, if needed
-update_source_cmakecfg_with_binary_dir()	

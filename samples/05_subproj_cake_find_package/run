@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# This sample is almost the same as 05_subproj_cake_depends.
+# The difference is that in this case subprojlib does not have a cake-depends.cmake
+# file in its root to describe the dependency information.
+# Instead, it just uses a conditional cake_find_package(ZLIB ...)
+# command in its CMakeLists.txt (see there: https://github.com/tamaskenez/cake-sample-subprojlib-cake-find-package)
+
+set -ex
+
+# path for cakepkg and cake commands
+export PATH=${PWD}/../..:$PATH
+
+# the path to the cake config file. Will be used by cakepkg (and cake)
+# to construct the cmake command lines
+export CAKE_CONFIG_FILE=${PWD}/cakecfg.cmake
+
+# Play with the following build settings. You can execute
+# ./clear remove previous build and install files before changing
+# the build settings.
+#
+# - SUBPROJLIB_WITH_ZLIB controls to build subprojlib with or without zlib.
+# - SUBPROJLIB_AS_SUBDIRECTORY controls to include subprojlib as a subproject (in a subdirectory)
+#   or as an external project, built in configuration-time
+build_settings="-DSUBPROJLIB_WITH_ZLIB=0 -DSUBPROJLIB_AS_SUBDIRECTORY=0"
+
+# In case you need to change the CMake generator, set the
+# variable CMAKE_GENERATOR here or before running this script
+# It's value will be also used in the cakecfg.cmake script so
+# external packages (zlib, subprojlib) will be built with that generator.
+
+# export CMAKE_GENERATOR=XCode
+
+if [[ $CMAKE_GENERATOR ]]; then
+  generator_opt="-G \"$CMAKE_GENERATOR\""
+else
+  generator_opt=""
+fi
+
+cmake -H. -B_build/05_subproj \
+  -DCAKE_ROOT=$PWD/../..
+  -DCMAKE_PREFIX_PATH=$PWD/_install -DCMAKE_INSTALL_PREFIX=$PWD/_install \
+  $build_settings $generator_opt
+
+cmake --build _build/05_subproj --target install
+
+./_install/bin/sample05
+
+
+
+

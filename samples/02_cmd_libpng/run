@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# This sample demonstrates how to install a package (libpng) from the command line (or script)
+# Libpng depends on zlib which will be installed automatically. The dependency information
+# is stored in the cake-depends-db.cmake file in the root of the Cake repository.
+
+set -ex
+
+# path for cakepkg and cake commands
+export PATH=${PWD}/../..:$PATH
+
+# the path to the cake config file. Will be used by cakepkg (and cake)
+# to construct the cmake command lines
+export CAKE_CONFIG_FILE=${PWD}/cakecfg.cmake
+
+# clone and build the 'install' target of the libpng package
+# also clones and installs zlib, the dependency of libpng
+# the dependency information is stored in cake-depends-db.txt
+# in the root of the cake installation
+cakepkg INSTALL URL git://git.code.sf.net/p/libpng/code?depth=1
+
+# the CMakeLists.txt calls find_package(PNG) and reports the result
+cmake -H. -B_build/02_cmd_libpng -DCMAKE_PREFIX_PATH=$PWD/_install
+
+
+
