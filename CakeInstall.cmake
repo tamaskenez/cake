@@ -43,7 +43,7 @@
 #     export CAKE_ROOT=$PWD/cake_root
 #     if test ! -f "$CAKE_ROOT/Cake.cmake" ; then
 #         rm -rf cake_root
-#         wget https://github.com/tamaskenez/cake/blob/master/CakeInstall.cmake
+#         curl https://raw.githubusercontent.com/tamaskenez/cake/master/CakeInstall.cmake -o CakeInstall.cmake
 #         cmake -P CakeInstall.cmake     
 #     fi
 # 

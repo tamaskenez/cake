@@ -58,7 +58,7 @@ if(NOT CAKE_LOAD_CONFIG_INCLUDED)
   # run-once code after the definitions
 
   function(_cake_load_config_file)
-    unset(l) # contains the list of vars defined now
+    set(l "") # contains the list of vars defined now
     foreach(v ${CAKE_ENV_VARS})
       if(DEFINED ${v})
         list(APPEND l ${v})
@@ -120,7 +120,7 @@ if(NOT CAKE_LOAD_CONFIG_INCLUDED)
   # then this function returns foo/bar in the variable ${var_out}
   function(_cake_extract_define_from_command_line argslist defname var_out)
     set(prev_was_dash_D 0)
-    unset(result)
+    set(result "")
     foreach(i ${argslist})
       if("${i}" MATCHES "^-D${defname}(:[^=]*)?=(.*)$")
         set(result ${CMAKE_MATCH_2})

@@ -8,9 +8,14 @@ next to do:
 - global git-clone depth
 - change cake_message(FATAL_ERROR) to message(FATAL_ERROR "[cake] ") for clearer stack report
 
+- add empty sample projects for single, master projects
+- advanced tips:
+  - different directory layouts for single, master projects
+  - gradual conversion of legacy projects (cake_pkg(INSTALL))
+  - non-cmake-enabled projects cake_pkg(CLONE)
 
-git checkout
-
+- add cmakepp pkg in the other pkg mgmrs list
+- tutorial+: existing projects can be converted gradually
 
 
 
