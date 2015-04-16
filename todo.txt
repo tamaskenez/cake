@@ -17,6 +17,12 @@ next to do:
 - add cmakepp pkg in the other pkg mgmrs list
 - tutorial+: existing projects can be converted gradually
 
+- tutorial faq:
+  - use cake in CMakeLists or not?
+  - if not what to do with find_package(): keep as is, if TARGET
+  - use cake in config-module?
+  - when to add cake-depends.cmake
+  - scenarios: library, library+test: standalone, library using 
 
 
 others:

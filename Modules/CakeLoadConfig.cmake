@@ -77,10 +77,16 @@ if(NOT CAKE_LOAD_CONFIG_INCLUDED)
 
     set(CAKE_LOAD_CONFIG_DONE 0)
 
+    if(NOT WIN32 OR DEFINED ENV{MSYSTEM})
+      set(_cake_s UNIX)
+    else()
+      set(_cake_s WINDOWS)
+    endif()
+
     # load from env var which is not defined here
-    foreach(v ${CAKE_ENV_VARS} )
-      if(NOT DEFINED ${v} AND DEFINED ENV{${v}})
-        separate_arguments(${v} ${s} "$ENV{${v}}")
+    foreach(_cake_v ${CAKE_ENV_VARS} )
+      if(NOT DEFINED ${_cake_v} AND DEFINED ENV{${_cake_v}})
+        separate_arguments(${_cake_v} ${_cake_s}_COMMAND "$ENV{${_cake_v}}")
       endif()
     endforeach()
 
