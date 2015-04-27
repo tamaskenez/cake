@@ -42,7 +42,6 @@
 #
 #     export CAKE_ROOT=$PWD/cake_root
 #     if test ! -f "$CAKE_ROOT/Cake.cmake" ; then
-#         rm -rf cake_root
 #         curl https://raw.githubusercontent.com/tamaskenez/cake/master/CakeInstall.cmake -o CakeInstall.cmake
 #         cmake -P CakeInstall.cmake     
 #     fi
@@ -62,6 +61,7 @@
 
 find_package(Git REQUIRED)
 set(CAKE_ROOT ${CMAKE_CURRENT_LIST_DIR}/cake_root CACHE PATH "Cake install directory" FORCE)
+file(REMOVE_RECURSE ${CAKE_ROOT})
 if(DEFINED CMAKE_SCRIPT_MODE_FILE)
   message("Set the CAKE_ROOT environment variable to ${CAKE_ROOT}")
 else()
