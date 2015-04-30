@@ -207,29 +207,29 @@ target_link_libraries(subprojtest subprojlib)</pre>
 <p>This is the option we used with <em>libpng</em>. The <em>Cake</em> repository contains a file <code>cake-depends-db.cmake</code> which defines a package dependency database. The line which describes <em>libpng</em>&#39;s dependency, <em>zlib</em> is:</p>
 
 <pre>
-cake_depends_db_add(URL git://git.code.sf.net/p/libpng/code SCRIPT &quot;cake_pkg(INSTALL URL https://github.com/madler/zlib.git?depth=1)&quot;)</pre>
+cake_depends_db_add(URL git://git.code.sf.net/p/libpng/code CODE &quot;cake_pkg(INSTALL URL https://github.com/madler/zlib.git?depth=1)&quot;)</pre>
 
-<p>The command <code>cake_depends_db_add</code> adds an entry to the database for the <em>libpng</em> repository. It assigns a script which will be invoked before building <em>libpng</em>:</p>
+<p>The command <code>cake_depends_db_add</code> adds an entry to the database for the <em>libpng</em> repository. It assigns a code which will be invoked before building <em>libpng</em>:</p>
 
 <pre>
 cake_pkg(INSTALL URL https://github.com/madler/zlib.git?depth=1)</pre>
 
-<p>Of course the script can be more complex as we can see in the next section:</p>
+<p>Of course the code can be more complex as we can see in the next section:</p>
 
 <h4>Specifying dependencies without changing the package&#39;s CMakeLists.txt</h4>
 
-<p>In certain cases you can add a file to the library&#39;s repository but does not want to mess with its CMakeLists.txt (so it can be still be built without <em>Cake</em>). In this case you can add a file <code>cake-depends.cmake</code> into the root of the library&#39;s repository which contains the same dependency-script as above. For example, if we choose to add <code>cake-depends.cmake</code> to the <em>libpng</em> repository:</p>
+<p>In certain cases you can add a file to the library&#39;s repository but does not want to mess with its CMakeLists.txt (so it can be still be built without <em>Cake</em>). In this case you can add a file <code>cake-depends.cmake</code> into the root of the library&#39;s repository which contains the same dependency-code as above. For example, if we choose to add <code>cake-depends.cmake</code> to the <em>libpng</em> repository:</p>
 
 <pre>
 # git.code.sf.net/p/libpng/code/cake-depends.cmake
 cake_pkg(INSTALL URL https://github.com/madler/zlib.git?depth=1)</pre>
 
-<p>These dependency-script receives the build configuration variables you specify in the query part of the package URL. For example, in case of a hypothetical library which has an optional <em>SQLite</em> dependency:</p>
+<p>These dependency-code receives the build configuration variables you specify in the query part of the package URL. For example, in case of a hypothetical library which has an optional <em>SQLite</em> dependency:</p>
 
 <pre>
 cake_find_package(mylib URL https://github.com/myaccount/mylib?MYLIB_WITH_SQLITE=1)</pre>
 
-<p>The <code>cake-depends.cmake</code> dependency-script of <em>mylib</em> could be this:</p>
+<p>The <code>cake-depends.cmake</code> dependency-code of <em>mylib</em> could be this:</p>
 
 <pre>
 # github.com/myaccount/mylib/cake-depends.cmake

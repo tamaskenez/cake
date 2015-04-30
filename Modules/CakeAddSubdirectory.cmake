@@ -9,10 +9,13 @@
 #
 #   CAKE_ADD_SUBDIRECTORY(<source-dir> [<binary-dir>]
 #                         [EXCLUDE_FROM_ALL]
-#                         URL <repo-url>)
+#                         NAME <pkg-name> | URL <repo-url>)
 # 
 # CAKE_ADD_SUBDIRECTORY first calls `cake_pkg(CLONE ...)` to clone the package repo to <source-dir>
 # then calls `add_subdirectory` with the remainder of the parameters.
+#
+# For the description of the `NAME` and `URL` options please see `CakePkg()`.
+#
 
 if(NOT CAKE_ADD_SUBDIRECTORY_INCLUDED)
   
@@ -32,78 +35,92 @@ if(NOT CAKE_ADD_SUBDIRECTORY_INCLUDED)
     include(${CMAKE_CURRENT_LIST_DIR}/CakePrivateUtils.cmake)
   endif()
 
-  macro(cake_add_subdirectory CAKE_ASD_ARG_SOURCEDIR)
+  function(cake_add_subdirectory ARG_SOURCEDIR)
 
-    if(NOT IS_ABSOLUTE "${CAKE_ASD_ARG_SOURCEDIR}")
-      get_filename_component(CAKE_ASD_ARG_SOURCEDIR_ABS "${CMAKE_CURRENT_LIST_DIR}/${CAKE_ASD_ARG_SOURCEDIR}" ABSOLUTE)
+    if(IS_ABSOLUTE "${ARG_SOURCEDIR}")
+      set(ARG_SOURCEDIR_ABS "${ARG_SOURCEDIR}")
     else()
-      set(CAKE_ASD_ARG_SOURCEDIR_ABS "${CAKE_ASD_ARG_SOURCEDIR}")
+      get_filename_component(ARG_SOURCEDIR_ABS "${CMAKE_CURRENT_SOURCE_DIR}/${ARG_SOURCEDIR}" ABSOLUTE)
     endif()
 
-    cmake_parse_arguments(CAKE_ASD "EXCLUDE_FROM_ALL" "URL" "" ${ARGN})
+    cmake_parse_arguments(ARG "EXCLUDE_FROM_ALL" "URL;NAME" "" ${ARGN})
 
-    set(_cake_asd_add_subdirectory_args "${CAKE_ASD_ARG_SOURCEDIR}")
+    set(add_subdir_args "${ARG_SOURCEDIR}")
 
-    list(LENGTH CAKE_ASD_UNPARSED_ARGUMENTS _cake_l)
-    if(_cake_l EQUAL 1)
-      list(APPEND _cake_asd_add_subdirectory_args "${CAKE_ASD_UNPARSED_ARGUMENTS}") #add binary dir
-    elseif(_cake_l GREATER 1)
+    list(LENGTH ARG_UNPARSED_ARGUMENTS len)
+    if(len EQUAL 1)
+      list(APPEND add_subdir_args "${ARG_UNPARSED_ARGUMENTS}") #add binary dir
+    elseif(len GREATER 1)
       message(FATAL_ERROR "[cake] Invalid arguments.")
     endif()
 
-    if(CAKE_ASD_EXCLUDE_FROM_ALL)
-      list(APPEND _cake_asd_add_subdirectory_args EXCLUDE_FROM_ALL)
+    if(ARG_EXCLUDE_FROM_ALL)
+      list(APPEND add_subdir_args EXCLUDE_FROM_ALL)
     endif()
 
-    if(NOT CAKE_ASD_URL)
-      message(FATAL_ERROR "[cake] Missing URL.")
+    set(url_and_name_opts "")
+    if(ARG_URL)
+      list(APPEND url_and_name_opts URL "${ARG_URL}")
     endif()
 
-    cake_parse_pkg_url(${CAKE_ASD_URL} _cake_repo_url _cake_repo_cid _ _cake_asd_definitions)
-
-    if(CAKE_PKG_${_cake_repo_cid}_ADDED_AS_SUBDIRECTORY)
-      message(FATAL_ERROR "[cake] Package ${_cake_repo_url} already added as subdirectory")
+    if(ARG_NAME)
+      list(APPEND url_and_name_opts NAME "${ARG_NAME}")
     endif()
 
-    if(CAKE_PKG_${_cake_repo_cid}_LOCAL_REPO_DIR)
-      message(FATAL_ERROR "[cake] Package ${_cake_repo_url} already added as external package (with cake_find_package()). "
-        "Solution: move this cake_add_subdirectory() call before the cake_find_package() or cake_add_subdirectory() "
-        "command of the package that needs this package.")
+    if(NOT url_and_name_opts)
+        message(FATAL_ERROR "[cake_add_subdirectory] Either URL or NAME must be specified.")
     endif()
 
-    cake_set_session_var(CAKE_PKG_${_cake_repo_cid}_ADDED_AS_SUBDIRECTORY 1)
 
-    cake_pkg(CLONE URL "${CAKE_ASD_URL}" DESTINATION "${CAKE_ASD_ARG_SOURCEDIR_ABS}")
+    cake_pkg(CLONE URL "${ARG_URL}" DESTINATION "${ARG_SOURCEDIR_ABS}")
+
+    # retrieve the cid and definitions of this package, either by NAME or URL
+    set(pk "")
+    if(ARG_NAME)
+      cake_repo_db_get_pk_by_field(name "${ARG_NAME}")
+      set(pk "${ans}")
+    endif()
+    if(NOT pk)
+      cake_parse_pkg_url(${ARG_URL} _ repo_cid _ _)
+      cake_repo_db_get_pk_by_field(cid "${repo_cid}")
+      set(pk "${ans}")
+    endif()
+
+    if(NOT pk)
+      message(FATAL_ERROR "[cake_add_subdirectory] Internal error: package just cloned not found in repo_db.")
+    endif()
+
+    cake_repo_db_get_field_by_pk(repo_cid "${pk}")
+    set(repo_cid "${ans}")
+    cake_repo_db_get_field_by_pk(definitions "${pk}")
+    set(definitions "${ans}")
 
     # execute the repo's cake-depends.cmake script, if exists
-    # also try to execute the hardcoded dependency script from cake-depends-db*.cmake
+    # otherwise try to execute the hardcoded dependency script from cake-depends-db*.cmake
 
-    # find dependencies:
-    # - try to run the repo's cake-depends.cmake
-    # - if no cake-depends.cmake consult the cake pkg db and run that script if found
-    set(_cake_depends_cmake_file "${CAKE_ASD_ARG_SOURCEDIR_ABS}/cake-depends.cmake")
-    set(_case_asd_randomfile "")
-    if(NOT EXISTS "${_cake_depends_cmake_file}" AND DEFINED CAKE_DEPENDS_DB_${_cake_repo_cid})
-      string(RANDOM _case_asd_randomfile)
-      set(_case_asd_randomfile "${CAKE_PKG_INSTALL_PREFIX}/var/cake_pkg_tmp/${_case_asd_randomfile}")
-      file(WRITE "${_case_asd_randomfile}" "${CAKE_DEPENDS_DB_${_cake_repo_cid}}")
-      set(_cake_depends_cmake_file "${_case_asd_randomfile}")
+    set(cake_depends_file "${ARG_SOURCEDIR_ABS}/cake-depends.cmake")
+    set(random_file "")
+    if(NOT EXISTS "${cake_depends_file}" AND DEFINED CAKE_DEPENDS_DB_${repo_cid})
+      string(RANDOM random_file)
+      set(random_file "${CAKE_PKG_INSTALL_PREFIX}/var/cake_pkg_tmp/${random_file}")
+      file(WRITE "${random_file}" "${CAKE_DEPENDS_DB_${repo_cid}}")
+      set(cake_depends_file "${random_file}")
     endif()
 
-    if(EXISTS "${_cake_depends_cmake_file}")
-      set(CAKE_DEFINITIONS ${_cake_asd_definitions})
-      # _call_cake_depends executes either the cake-depends.script or
+    if(EXISTS "${cake_depends_file}")
+      # execute either the cake-depends.script
       # or the script defined in the cake-depends-db*.cmake
-      # The script usually contains cake_pkg(INSTALL ...) calls which
+      # The script usually contains cake_pkg(INSTALL ...) calls to
       # fetch and install dependencies
-      _call_cake_depends("${_cake_depends_cmake_file}")
+      _cake_apply_definitions("${definitions}")
+      include("${cake_depends_cmake_file}")
     endif()
 
-    if(_case_asd_randomfile)
-      file(REMOVE "${_case_asd_randomfile}")
+    if(random_file)
+      file(REMOVE "${random_file}")
     endif()
 
-    add_subdirectory(${_cake_asd_add_subdirectory_args})
+    add_subdirectory(${add_subdir_args})
 
-  endmacro()
+  endfunction()
 endif()

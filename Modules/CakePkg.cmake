@@ -2,46 +2,62 @@
 # CakePkg
 # -------
 #
-# CAKE_PKG() clones or updates the git repository and builds and installs the package.
+# CAKE_PKG() performs various operations on a single package or on multiple packages.
+# The operations are cloning, installation, removal and status reports.
 #
 # ::
 #
-#   CAKE_PKG(CLONE|UPDATE|INSTALL
-#            URL <repo-url>
-#            [DESTINATION <target-dir>])
+# 1. CLONE
 #
+#   CAKE_PKG(CLONE
+#            NAME <name> | URL <repo-url>
+#            [PROJECT <project-name>]
+#            [DESTINATION <dest-dir>])
 #
-# If no ``DESTINATION`` is given then the location of the local copy of the repository will be determined by the
-# the CAKE_PKG_CMAKE_OPTIONS configuration variable (see `CmakeLoadConfig.cmake`):
+# The command clones the repository to the given `<dest-dir>` or to an automatic location.
+# Relative `<dest-dir>` is interpreted relative to the current source directory. In script mode it must be absolute.
 #
-# The function uses the value of ``CMAKE_INSTALL_PREFIX`` set in ``CAKE_PKG_CMAKE_OPTIONS`` and create a directory`
+# Either ``<repo-url>`` or ``<pkg-name>`` must be given. If ``<pkg-name>`` is given
+# the command looks up ``<pkg-name>`` in the Cake package registry, see `CakeRegisterPkg()`.
+# If both ``<repo-url>`` and ``<pkg-name>`` are given the ``<repo-url>`` is only a hint, will be
+# used only if no ``<pkg-name>`` is found in the registry.
+#
+# If the package of the same ``<pkg-name>`` or ``<repo-url>`` has already been cloned the
+# function does nothing. Even if both the `<name>` and `<repo_url>` are specified but
+# the package `<name>` has already been cloned from a different URL, the command will succeed
+# without making any changes.
+#
+# It is an error if the existing location differs from `<dest-dir>`.
+#
+# If no `<dest-dir>` given the function uses the value of ``CMAKE_INSTALL_PREFIX`` set in ``CAKE_PKG_CMAKE_OPTIONS`` and create a directory
 # under ${CMAKE_INSTALL_PREFIX}/var. The actual name of the directory will be derived from ``<repo-url>``.
+# See also `CakeLoadConfig.cmake`.
 #
-# If ``CAKE_PKG_CMAKE_OPTIONS`` doesn't set ``CMAKE_PREFIX_PATH`` then the current value of ``CMAKE_PREFIX_PATH``
-# will be used.
+# Usually you don't call `cake_pkg(CLONE ...)` with `DESTINATION` directly, instead you call `cake_add_subdirectory()`.
 #
-# If ``DESTINATION`` is given then the package will be cloned into ``<target-dir>`` instead. However ``DESTINATION``
-# affects only this package. If this package has any dependencies which has not yet been added as a subdirectory (see
-# `cake_add_subdirectory()`) then the location of those dependencies will be determined according
-# to the previous paragraph.
+# ``<project-name>`` can be used to group packages, defaults to ``${PROJECT_NAME}`` or to ``non-project`` in script mode.
 #
-# The function has the following modes of working:
+# 2. INSTALL
 #
-# - CLONE: git clone (if target-dir is missing)
-# - UPDATE: git pull (implies CLONE if target-dir is missing)
-# - INSTALL: build the ``install`` target, implies CLONE
+#   CAKE_PKG(CLONE
+#            NAME <name> | URL <repo-url>
+#            [PROJECT <project-name>]
+#            [DESTINATION <dest-dir>]
+#            [DEFINITIONS <definitions>...])
 #
-# If you specifyu only CLONE or INSTALL you can still force updating by specifying ``-DCAKE_PKG_UPDATE_NOW=1``
-# for the CMake configuration run (the variable will be removed from the cache after the update took place).
+# The INSTALL signature implies a CLONE step first so everything written for CLONE applies here.
 #
-# CAKE_PKG() also recursively calls CAKE_PKG() for the dependencies of the current package. It can determine
-# the dependencies from two sources: either from a file ``cake-depends.cmake`` in the root
-# of the package or consulting the Cake package database.
+# After the CLONE the command attemts to install the dependencies of the cloned repository:
+# - attempts to find and execute (`include`) the file ``cake-depends.cmake`` in the root of the repository
+# - if the file cannot be found, attempts to look up the repository in the Cake package registry and
+#   execute the code found there
 #
-# Usually you don't need to call CAKE_PKG directly. Instead:
+# After executing the dependency script (if found) the commands finished by configuring and building
+# the ``install`` target of the repository using the ``cmake`` command.
 #
-# - call `cake_find_package()` to add an external dependent package. This will call ``cake_pkg(INSTALL ...)``
-# - call `cake_add_subdirectory()` to add an in-project dependent package. This will call ``cake_pkg(CLONE ...)```
+# The `<definitions>` is a list of -Dname=value strings (value is optional). The URL also may contain definitions
+# (see the next section). These definitions will be passed to the dependency script and also the the ``cmake``
+# configuration phase.
 #
 # Format of the ``<repo-url>``
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -56,7 +72,6 @@
 #
 # - ``branch=<branch>`` -> ``git clone ... --branch <branch>``
 # - ``depth=<depth>`` -> ``git clone ... --depth <depth>``
-# - ``recursive`` or ``recurse_submodules`` -> ``git clone ... --recursive``
 #
 # Determining dependencies from ``cake-depends.cmake``:
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -89,6 +104,7 @@
 # phase checks the saved SHA and will not launch the CMake build operation for an unchanged package.
 #
 # About the cake environment variables controlling these operations see `cake_load_config()`
+#
 
 include(CMakePrintHelpers)
 
@@ -173,19 +189,18 @@ if(NOT CAKE_PKG_INCLUDED)
     set(${DEFINITIONS_OUT} "${definitions}" PARENT_SCOPE)
   endfunction()
 
-  function(_call_cake_depends cake_depends_file)
-    # extract definitions into CMake variables
-    foreach(i ${CAKE_DEFINITIONS})
-      string(REGEX MATCH "^-D([^=]+)=(.*)$" v "${i}")
-      if(NOT CMAKE_MATCH_1)
-        message(FATAL_ERROR "[cake] Internal error, definition does not match regex: ${i}")
+  macro(_cake_apply_definitions definitions)
+    foreach(i ${definitions})
+      if(i MATCHES "^-D([^=]+)=(.*)$")
+        set(${CMAKE_MATCH_1} "${CMAKE_MATCH_2}")
+      elseif(i MATCHES "^-U([^=]+)$")
+        unset(${CMAKE_MATCH_1})
+        unset(${CMAKE_MATCH_1} CACHE)
+      else()
+        message(FATAL_ERROR "[cake] Internal error, definition does not match regex (-DX=Y or -UX): ${i}")
       endif()
-      set(${CMAKE_MATCH_1} "${CMAKE_MATCH_2}")
     endforeach()
-    # call cake_depends.cmake
-    include("${cake_depends_file}")
-  endfunction()
-
+  endmacro()
 
   # input (options) and output (branch) args are from the parent scope
   # branch will be empty if options does not list a branch parameter
@@ -267,129 +282,164 @@ if(NOT CAKE_PKG_INCLUDED)
     endif()
   endmacro()
 
+  macro(_cake_remove_if_stale pk_var)
+    cake_repo_db_get_field_by_pk(destination "${${pk_var}}")
+    if(NOT EXISTS "${ans}")
+      cake_repo_db_erase_by_pk("${${pk_var}}")
+      set(${pk_var} "")
+    endif()
+  endmacro()
+
+
   # session vars
   # - CAKE_PKG_<CID>_TRAVERSED_BY_PKG_PULL_NOW
   # - CAKE_PKG_<CID>_TRAVERSED_BY_PKG_INSTALL_NOW
   # - CAKE_PKG_<CID>_LOCAL_REPO_DIR
   # - CAKE_PKG_<CID>_ADDED_AS_SUBDIRECTORY
 
+
   # pkg_url is the full, decorated URL (with optional query part to specify key-value pairs)
-  # if pull_always is FALSE it only clones if target directory is missing
-  # if pull_always is TRUE it clones if target dir missing, pulls if not missing
   # destination can be empty (= calculate destination under CAKE_PKG_REPOS_DIR)
   #   or non-empty (= this packaged has been added by a cake_add_subdirectory() call and will be part of the CMake project)
   # if destination is empty, since the package will not be built as a part of the CMake project (not a subdirectory)
-  function(_cake_pkg_pull pkg_url pull_always destination)
-    cake_parse_pkg_url(${pkg_url} repo_url pkg_subdir options definitions)
-
-    # Logic to determine where this package should be cloned to
-    # - 'destination' can be empty (= clone to automatic location below CAKE_PKG_REPOS_DIR)
-    #   or non-empty (= clone to specific location, probably a cake_add_subdirectory() call)
-    # - this package may have already been cloned to a location 
-    # These are 2 x 2 possibilities:
-    if(destination)
-      # if this repo has not been cloned yet, use destination instead of calculated pkg_dir
-      # otherwise if destination differs from the already installed one, error
-      if(NOT DEFINED CAKE_PKG_${pkg_subdir}_LOCAL_REPO_DIR)
-        set(pkg_dir "${destination}")
-        cake_set_session_var(CAKE_PKG_${pkg_subdir}_LOCAL_REPO_DIR ${pkg_dir})
-      elseif(NOT "${CAKE_PKG_${pkg_subdir}_LOCAL_REPO_DIR}" STREQUAL "${destination}")
-        message(FATAL_ERROR "[cake] Package ${repo_url} already cloned into ${CAKE_PKG_${pkg_subdir}_LOCAL_REPO_DIR}, "
-          "now requested to clone into ${destination}. Possible reason: "
-          "This package is a automatically cloned dependency of another package and later explicitly "
-          "added with cake_add_subdirectory. Solution: move the cake_add_subdirectory() for this package "
-          "before the first cake_add_subdirectory()/cake_find_package()/cake_pkg command which it is a dependecy of.")
-      endif()
+  # project is the the resolved project (either specified or default)
+  # name is the specified name
+  # returns (ans) the cloned repo's primary key
+  function(_cake_pkg_clone pkg_url destination project name)
+    if(destination STREQUAL "")
+      set(resolved_destination ${CAKE_PKG_REPOS_DIR}/${url_cid})
     else()
-      if(NOT DEFINED CAKE_PKG_${pkg_subdir}_LOCAL_REPO_DIR)
-        set(pkg_dir ${CAKE_PKG_REPOS_DIR}/${pkg_subdir})
-        cake_set_session_var(CAKE_PKG_${pkg_subdir}_LOCAL_REPO_DIR ${pkg_dir})
-        # repos cloned to ${CAKE_PKG_REPOS_DIR} (as opposed to added with cake_add_subdirectory)
-        # should be auto-installed in configuration time since they're not part of the project
+      if(NOT IS_ABSOLUTE "${destination}")
+        message(FATAL_ERROR "[cake_pkg] internal error, destination must be absolute.")
+      endif()
+      if(destination MATCHES "^${CAKE_PKG_REPOS_DIR}/")
+        message(FATAL_ERROR "[cake_pkg] <destination> must not be under ${CAKE_PKG_REPOS_DIR}.")
+      endif()
+      set(resolved_destination "${destination}")
+    endif()
+
+    if(pkg_url)
+      cake_parse_pkg_url("${pkg_url}" _ url_cid _ _)
+      cake_repo_db_get_pk_by_field(cid "${url_cid}")
+      set(pk_from_url "${ans}")
+      _cake_remove_if_stale(pk_from_url)
+    else()
+      set(pk_from_url "")
+    endif()
+
+    if(name)
+      cake_repo_db_get_pk_by_field(name "${name}")
+      set(pk_from_name "${ans}")
+      _cake_remove_if_stale(pk_from_name)
+    else()
+      set(pk_from_name "")
+    endif()
+
+    if(pk_from_name)
+      if(pk_from_url)
+        if(pk_from_name EQUAL pk_from_url)
+          set(pk "${pk_from_name}")
+        else()
+          cake_repo_db_get_field_by_pk("${pk_from_name}" url)
+          set(other_url "${ans}")
+          cake_repo_db_get_field_by_pk("${pk_from_url}" name)
+          set(other_name "${ans}")
+          message(FATAL_ERROR "[cake_pkg] You requested cloning the package ${name} from the url ${pkg_url}.
+            The package ${name} has already been cloned from url ${other_url} and
+            the url ${pkg_url} has already been cloned under the name ${other_name}. Please change
+            either the names of the urls to avoid confusion.")
+        endif()
       else()
-        set(pkg_dir "${CAKE_PKG_${pkg_subdir}_LOCAL_REPO_DIR}")
-      endif()
-    endif()
-
-    # if there's a cloned git repo there it's current commit
-    # and the requested commit should be the same
-    _cake_get_branch_from_options() # input: $options, output: $branch
-
-    # if this package has already been traversed (= this function has been called
-    # for this package in this cmake configuration session) then we don't want
-    # to modify the commit of package's repo. We only check if
-    # the existing commit is compatible with the requested one
-    if(CAKE_PKG_${pkg_subdir}_TRAVERSED_BY_PKG_PULL_NOW)
-        _cake_make_sure_repo_sha_compatible_with_requested_sha()
-        return()
-    endif()
-
-    cake_set_session_var(CAKE_PKG_${pkg_subdir}_TRAVERSED_BY_PKG_PULL_NOW 1)
-
-    if(NOT IS_DIRECTORY "${pkg_dir}")
-
-      file(MAKE_DIRECTORY ${pkg_dir})
-
-      # prepare parameters for git clone
-      set(command_line clone)
-      foreach(i ${options})
-        if("${i}" MATCHES "^branch=(.+)$")
-          list(APPEND command_line -b "${CMAKE_MATCH_1}")
-        elseif("${i}" MATCHES "^depth=(.+)$")
-          list(APPEND command_line --depth "${CMAKE_MATCH_1}")
-        elseif("${i}" MATCHES "^(recursive|recurse-submodules)=(.*)$")
-          if(CMAKE_MATCH_2)
-            list(APPEND command_line --recursive)
-          endif()
-        endif()
-      endforeach()
-
-      # prepare command line for git clone
-      list(APPEND command_line ${repo_url} ${pkg_dir})
-      # git clone
-      _cake_execute_git_command_in_repo("${command_line}" "" res_var)
-
-      if(res_var)
-        message(FATAL_ERROR "[cake] git clone failed")
+        set(pk "${pk_from_name}")
       endif()
     else()
-      set(need_fetch 0)
-      if(branch)
-        _cake_execute_git_command_in_repo("checkout;${branch}" "${pkg_dir}" _ git_result)
-        if(git_result)
-          set(need_fetch 1)
-        endif()
+      if(pk_from_url)
+        set(pk "${pk_from_url}")
+      else()
+        set(pk "")
       endif()
+    endif()      
 
-      if(NOT need_fetch AND pull_always)
-          # git checkout succeeded (or not executed). If we're not on detached head then
-          # we're on branch. If in that case pull_always is TRUE then we need to fetch
-          # next git command gives error if detached HEAD
-          _cake_execute_git_command_in_repo("symbolic-ref;-q;HEAD" "${pkg_dir}" _ git_result)
-          if(NOT git_result) # not detached: on branch
-            set(need_fetch 1)
-          endif()
-      endif()
+    if(pk)
+      cake_repo_db_get_field_by_pk(destination "${pk}")
+      set(existing_destination "${ans}")
+    else()
+      set(existing_destination "")
+    endif()
 
-      if(need_fetch)
-        if(NOT pull_always)
-          message(FATAL_ERROR "[cake] The commitish '${branch}' does not exist in the local ${repo_url} repository. It should be "
-            "fetched either manually or by specifying -DCAKE_PKG_UPDATE_NOW=1")
-        endif()
-        _cake_execute_git_command_in_repo("fetch" "${pkg_dir}" _)
-        if(branch)
-          _cake_execute_git_command_in_repo("checkout;${branch}" "${pkg_dir}" _ git_result)
-          if(git_result)
-            message(FATAL_ERROR "[cake] The commitish '${branch}' does not exist in the local ${repo_url} repository even after fetch. ")
-          endif()
-        endif()
-          # if we're not on detached HEAD do a git merge FETCH_HEAD
-          _cake_execute_git_command_in_repo("symbolic-ref;-q;HEAD" "${pkg_dir}" _ git_result)
-          if(NOT git_result) # not detached: on branch
-            _cake_execute_git_command_in_repo("merge;--ff-only;FETCH_HEAD" "${pkg_dir}" _)
-          endif()
+    if(existing_destination)
+      # nothing to do, if no explicit destination specified, or it's the same as previous
+      if(NOT destination OR destination STREQUAL existing_destination)
+        set(ans "${pk}" PARENT_SCOPE)
+        return()
+      else()
+        message(FATAL_ERROR
+"[cake_pkg] The repository ${repo_url} has already been cloned to
+    ${existing_destination},
+the current request is to clone it to
+    ${destination}.
+This sitatuation usually comes up when a repository is cloned as an external
+dependency to an automatic location then later you add the same repository as
+a subdirectory to your project.
+Possible solution: add this repository as subdirectory before all other
+references to it. You also need to remove the current clone manually, either
+by removing the directory ${existing_destination}
+or by calling 'cakepkg REMOVE ...'.")
       endif()
     endif()
+
+    # clone new repo
+    if(IS_DIRECTORY "${resolved_destination}")
+      message(FATAL_ERROR "[cake_pkg] About to clone into directory ${resolved_destination} but the directory exists. 
+        Inspect the repository for changes and remove it manually.")
+    endif()
+
+    if(pkg_url)
+      cake_parse_pkg_url("${pkg_url}" repo_url url_cid options _)
+    else()
+      message(FATAL_ERROR "Package registry is not implemented, can't look up ${name}")
+    endif()
+
+    file(MAKE_DIRECTORY "${resolved_destination}")
+
+    # prepare parameters for git clone
+    set(command_line clone)
+    foreach(i ${options})
+      if("${i}" MATCHES "^branch=(.+)$")
+        list(APPEND command_line -b "${CMAKE_MATCH_1}")
+      elseif("${i}" MATCHES "^depth=(.+)$")
+        list(APPEND command_line --depth "${CMAKE_MATCH_1}")
+        set(depth_set 1)
+      endif()
+    endforeach()
+    list(APPEND command_line --recursive)
+
+    # prepare command line for git clone
+    list(APPEND command_line ${repo_url} ${url_cid})
+    # git clone
+    _cake_execute_git_command_in_repo("${command_line}" "" res_var)
+
+    if(res_var)
+      message(FATAL_ERROR "[cake_pkg] git clone failed")
+    endif()
+
+    if(NOT name)
+      set(name "${url_cid}")
+    endif()
+
+    cake_repo_db_next_pk()
+
+    set(pk "${ans}")
+
+    cake_repo_db_add_fields(pk
+      cid "${url_cid}"
+      url "${repo_url}"
+      project "${project}"
+      name "${name}"
+      destination "${resolved_destination}")
+
+    set(ans "${pk}" PARENT_SCOPE)
+
   endfunction()
 
   # build_pars_now_var and last_build_pars_var name lists containing items like
@@ -438,25 +488,30 @@ if(NOT CAKE_PKG_INCLUDED)
     set(ans 1 PARENT_SCOPE)
   endfunction()
 
-  function(_cake_pkg_install pkg_url)
-    cake_parse_pkg_url(${pkg_url} repo_url pkg_subdir options definitions)
-
-    if(CAKE_PKG_${pkg_subdir}_ADDED_AS_SUBDIRECTORY)
+  # pk: primary key of entry in repo_db
+  function(_cake_pkg_install pk definitions)
+    cake_repo_db_get_field_by_pk(destination "${pk}")
+    set(destination "${ans}")
+    cake_repo_db_get_field_by_pk(cid "${pk}")
+    set(cid "${ans}")
+    # check if destination is a subdirectory
+    get_directory_property(p DIRECTORY "${destination}" PARENT_DIRECTORY)
+    if(p)
       cake_message(STATUS "The package ${repo_url} has already been added as subdirectory, skipping installation. "
         "The consumer of this package (${CMAKE_CURRENT_SOURCE_DIR}) must be prepared to use the package as a target as opposed to"
         " a package found by find_package() or cake_find_package().")
       return()
     endif()
 
-    set(pkg_dir ${CAKE_PKG_REPOS_DIR}/${pkg_subdir})
-
-    _cake_execute_git_command_in_repo("log;-1;--pretty=format:%H" "${pkg_dir}" repo_sha)
+    _cake_execute_git_command_in_repo("log;-1;--pretty=format:%H" "${destination}" repo_sha)
     set(build_pars_now "COMMIT=${repo_sha};${definitions}")
 
     # if we've already installed this in this session just make sure the
     # current build settings are compatible with the first time's build settings
-    if(CAKE_PKG_${pkg_subdir}_TRAVERSED_BY_PKG_INSTALL_NOW)
-      _cake_are_build_par_lists_compatible(CAKE_PKG_${pkg_subdir}_LAST_BUILD_PARS build_pars_now)
+    if(CAKE_PKG_${cid}_TRAVERSED_BY_PKG_INSTALL_NOW)
+      #todo this one should be reimplemented after introducing required definitions
+      #_cake_are_build_par_lists_compatible(CAKE_PKG_${cid}_LAST_BUILD_PARS build_pars_now)
+      set(ans 1)
       if(NOT ans)
         cmake_print_variables(last_build_pars build_pars_now)
         message(FATAL_ERROR "[cake] The package ${pkg_url} has just been installed and now "
@@ -468,28 +523,28 @@ if(NOT CAKE_PKG_INCLUDED)
       endif()
     endif()
 
-    cake_set_session_var(CAKE_PKG_${pkg_subdir}_TRAVERSED_BY_PKG_INSTALL_NOW 1)
-    cake_set_session_var(CAKE_PKG_${pkg_subdir}_LAST_BUILD_PARS "${build_pars_now}")
+    cake_set_session_var(CAKE_PKG_${cid}_TRAVERSED_BY_PKG_INSTALL_NOW 1)
+    cake_set_session_var(CAKE_PKG_${cid}_LAST_BUILD_PARS "${build_pars_now}")
 
     # find dependencies:
     # - try to run the repo's cake-depends.cmake
     # - if no cake-depends.cmake consult the cake pkg db and run that script if found
-    set(cake_depends_cmake_file "${pkg_dir}/cake-depends.cmake")
+    set(cake_depends_cmake_file "${destination}/cake-depends.cmake")
     set(randomfile "")
-    if(NOT EXISTS "${cake_depends_cmake_file}" AND DEFINED CAKE_DEPENDS_DB_${pkg_subdir})
+    if(NOT EXISTS "${cake_depends_cmake_file}" AND DEFINED CAKE_DEPENDS_DB_${cid})
       string(RANDOM randomfile)
       set(randomfile "${CAKE_PKG_INSTALL_PREFIX}/var/cake_pkg_tmp/${randomfile}")
-      file(WRITE "${randomfile}" "${CAKE_DEPENDS_DB_${pkg_subdir}}")
+      file(WRITE "${randomfile}" "${CAKE_DEPENDS_DB_${cid}}")
       set(cake_depends_cmake_file "${randomfile}")
     endif()
 
     if(EXISTS "${cake_depends_cmake_file}")
-      set(CAKE_DEFINITIONS ${definitions})
       # _call_cake_depends executes either the cake-depends.script or
       # or the script defined in the cake-depends-db*.cmake
       # The script usually contains cake_pkg(INSTALL ...) calls which
       # fetch and install dependencies
-      _call_cake_depends("${cake_depends_cmake_file}")
+      _cake_apply_definitions("${definitions}")
+      include("${cake_depends_cmake_file}")
     endif()
 
     if(randomfile)
@@ -502,9 +557,15 @@ if(NOT CAKE_PKG_INCLUDED)
       message(FATAL_ERROR "[cake] CAKE_PKG_CONFIGURATION_TYPES is empty. It should be left undefined (then defaults to 'Release') or set to valid values.")
     endif()
 
+    cake_repo_db_get_field_by_pk(name "${pk}")
+    if(ans STREQUAL cid)
+      cake_repo_db_get_field_by_pk(url "${pk}")
+    endif()
+    set(descriptive_name "${ans}")
+
     foreach(c ${CAKE_PKG_CONFIGURATION_TYPES})
       # read pars of last build (install)
-      set(last_build_pars_path ${CAKE_PKG_LAST_BUILD_PARS_DIR}/${pkg_subdir}_${c})
+      set(last_build_pars_path ${CAKE_PKG_LAST_BUILD_PARS_DIR}/${cid}_${c})
       set(last_build_pars "")
       if(EXISTS "${last_build_pars_path}")
         file(STRINGS "${last_build_pars_path}" last_build_pars)
@@ -512,11 +573,8 @@ if(NOT CAKE_PKG_INCLUDED)
         set(last_build_pars "COMMIT=")
       endif()
 
-      _cake_are_build_par_lists_compatible(last_build_pars build_pars_now)
-
-      if(NOT ans) # last install is non-existent or outdated
-
-        cake_message(STATUS "Building the install target (${c}) for package ${pkg_url}")
+      if(last_build_pars STREQUAL build_pars_now) # last install is non-existent or outdated
+        cake_message(STATUS "Building the install target (${c}) for package ${descriptive_name}")
 
         # remove pars from last build
         set(first_par 1)
@@ -533,9 +591,9 @@ if(NOT CAKE_PKG_INCLUDED)
         endforeach()
 
         # call cmake configure
-        set(binary_dir ${CAKE_PKG_BUILD_DIR}/${pkg_subdir}_${c})
+        set(binary_dir ${CAKE_PKG_BUILD_DIR}/${cid}_${c})
         set(command_line
-            -H${pkg_dir} -B${binary_dir}
+            -H${destination} -B${binary_dir}
             -DCMAKE_BUILD_TYPE=${c}
             -DCAKE_ROOT=${CAKE_ROOT}
             ${CAKE_PKG_CMAKE_OPTIONS}
@@ -573,36 +631,118 @@ if(NOT CAKE_PKG_INCLUDED)
 
   endfunction()
 
-  # cake_pkg(CLONE|UPDATE) -> clone or update only
-  # cake_pkg(INSTALL) -> execute DEPENDS script if found then build install target
-  # cake_find_package() -> no-op if subdir, otherwise cake_pkg(INSTALL) + find_package
-  # cake_add_subdirectory -> cake_pkg(CLONE) + execute depends script if found + add_subdirectory() which
-  #     executes the package's cmakelists which can pull down further dependencies with cake_find_package calls
-
+# CAKE_PKG_REGISTRY_<NAME> = URL [DEFINITIONS]
+# CLONE:
+# - CLONE URL [DESTINATION] [NAME] [PROJECT]
+# - CLONE NAME [DESTINATION] [PROJECT]
+# INSTALL single:
+# - INSTALL URL [DESTINATION] [NAME] [PROJECT] [DEFINITIONS]
+# - INSTALL NAME [DESTINATION] [PROJECT] [DEFINITIONS]
+# INSTALL batch:
+# - INSTALL ALL^(PROJECT|IF)
+# REPORT single:
+# - STATUS|DIFFLOG|COMMAND|CMDC|SHC NAME
+# REPORT batch:
+# - STATUS|DIFFLOG|COMMAND|CMDC|SHC ALL^(PROJECT|IF)
+# REMOVE single
+# - REMOVE NAME|(ALL^(PROJECT|IF))
+# - LIST NAME|(ALL^(PROJECT|IF))
   function(cake_pkg)
 
-    cmake_parse_arguments(CAKE_PKG "CLONE;INSTALL;UPDATE" "URL;DESTINATION" "" ${ARGV})
+    set(option_commands CLONE INSTALL STATUS DIFFLOG REMOVE LIST)
+    set(mv_commands COMMAND CMDC SHC)
+    set(all_commands ${option_commands} ${mv_commands})
 
-    if(NOT CAKE_PKG_URL)
-      message(FATAL_ERROR "[cake] Missing URL.")
+    cmake_parse_arguments(ARG
+      "${option_commands}"
+      "URL;DESTINATION;NAME;PROJECT"
+      "${mv_commands};IF;DEFINITIONS"
+      ${ARGV})
+
+    set(count 0)
+    foreach(c ${all_commands})
+      if(ARG_${c})
+        math(EXPR count "${count}+1")
+      endif()
+    endforeach()
+    if(count EQUAL 0 OR count GREATER 1)
+      string(REPLACE \; ", " s "${all_commands}")
+      message(FATAL_ERROR "[cake_pkg] Exactly one of these options must be specified: ${s}")
     endif()
 
-    set(CAKE_PKG_REPOS_DIR ${CAKE_PKG_INSTALL_PREFIX}/var/cake_pkg_repos)
-    set(CAKE_PKG_BUILD_DIR ${CAKE_PKG_INSTALL_PREFIX}/var/cake_pkg_build)
-    set(CAKE_PKG_LAST_BUILD_PARS_DIR ${CAKE_PKG_INSTALL_PREFIX}/var/cake_pkg_last_build_pars)
+    # make ARG_DESTINATION absolute
+    if(NOT ("${ARG_DESTINATION}" STREQUAL "") AND NOT IS_ABSOLUTE "${ARG_DESTINATION}")
+      if(DEFINED CMAKE_SCRIPT_MODE_FILE)
+        message(FATAL_ERROR "[cake_pkg] In script mode <destination-dir> must be absolute path.")
+      else()
+        get_filename_component(ARG_DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/${ARG_DESTINATION}")
+      endif()
+    endif()
 
-    if(CAKE_PKG_UPDATE_NOW OR CAKE_PKG_UPDATE)
-      set(_cake_pull_now 1)
+    if(ARG_PROJECT)
+      set(project "${ARG_PROJECT}")
+    elseif("${PROJECT_NAME}" STREQUAL "")
+      set(project "non-project")
     else()
-      set(_cake_pull_now 0)
-    endif()
-    
-    _cake_pkg_pull(${CAKE_PKG_URL} ${_cake_pull_now} "${CAKE_PKG_DESTINATION}")
-
-    if(CAKE_PKG_INSTALL)
-      _cake_pkg_install(${CAKE_PKG_URL})
+      set(project "${PROJECT_NAME}")
     endif()
 
+    if((NOT ARG_NAME AND NOT ARG_URL) AND (ARG_CLONE OR ARG_INSTALL))
+      message(FATAL_ERROR "[cake_pkg] Either URL or NAME (or both) must be specified.")
+    endif()
+
+    if(ARG_CLONE OR ARG_INSTALL)
+      if(ARG_URL)
+        cake_parse_pkg_url("${ARG_URL}" repo_url repo_cid repo_options repo_definitions)
+      else()
+        set(repo_url "")
+        set(repo_cid "")
+        set(repo_options "")
+        set(repo_definitions "")
+      endif()
+      _cake_pkg_clone(${ARG_URL} "${ARG_DESTINATION}" "${project}" "${ARG_NAME}")
+      set(pk "${ans}")
+      if(ARG_INSTALL)
+        set(defs ${repo_definitions})
+        list(APPEND defs ${ARG_DEFINITIONS})
+        list(SORT defs)
+        list(REMOVE_DUPLICATES defs)
+        _cake_pkg_install("${pk}" "${defs}")
+      endif()
+    elseif(ARG_STATUS OR ARG_DIFFLOG OR ARG_COMMAND OR ARG_CMDC OR ARG_SHC)
+      if(ARG_NAME)
+        message(FATAL_ERROR "[cake_pkg] this option is not implemented")
+      else()
+        # batch report
+        file(GLOB dirs ${CAKE_PKG_REPOS_DIR}/*)
+        foreach(d ${dirs})
+          if(IS_DIRECTORY "${d}")
+            if(ARG_COMMAND)
+              set(command ${ARG_COMMAND})
+            elseif(ARG_CMDC)
+              set(command cmd /c ${ARG_CMDC})
+            elseif(ARG_SHC)
+              string(REPLACE \; " " v "${ARG_SHC}")
+              cmake_print_variables(ARG_SHC v)
+              set(command sh -c "${v}")
+            else()
+              message(FATAL_ERROR "[cake_pkg] internal error while assembling command")
+            endif()
+            cake_list_to_command_line_like_string(s "${command}")
+            message(STATUS "cd ${d}")
+            message(STATUS "${s}")
+            execute_process(COMMAND ${command}
+              WORKING_DIRECTORY ${d}
+              RESULT_VARIABLE r)
+            if(r)
+              message(FATAL_ERROR "[cake_pkg] Result: ${r}")
+            endif()
+          endif()
+        endforeach()
+      endif()
+    else()
+      message(FATAL_ERROR "[cake_pkg] internal error in arg parsing")
+    endif()
   endfunction()
 
   macro(cake_load_pkg_db)
@@ -614,12 +754,18 @@ if(NOT CAKE_PKG_INCLUDED)
 
 # ---- run-once code ----
 
-  find_package(Git REQUIRED)
+  find_package(Git REQUIRED QUIET)
 
   if(CAKE_PKG_UPDATE_NOW)
     cake_set_session_var(CAKE_PKG_UPDATE_NOW 1)
   endif()
 
   cake_load_pkg_db()
+
+  set(CAKE_PKG_REPOS_DIR ${CAKE_PKG_INSTALL_PREFIX}/var/cake_pkg_repos)
+  set(CAKE_PKG_BUILD_DIR ${CAKE_PKG_INSTALL_PREFIX}/var/cake_pkg_build)
+  set(CAKE_PKG_LAST_BUILD_PARS_DIR ${CAKE_PKG_INSTALL_PREFIX}/var/cake_pkg_last_build_pars)
+
+  include(${CMAKE_CURRENT_LIST_DIR}/CakeRepoDb.cmake)
 
 endif()
