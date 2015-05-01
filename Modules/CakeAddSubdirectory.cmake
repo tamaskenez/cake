@@ -9,13 +9,15 @@
 #
 #   CAKE_ADD_SUBDIRECTORY(<source-dir> [<binary-dir>]
 #                         [EXCLUDE_FROM_ALL]
-#                         NAME <pkg-name> | URL <repo-url>)
+#                         NAME <pkg-name> | URL <repo-url>
+#                         [PROJECT <project-name>])
 # 
 # CAKE_ADD_SUBDIRECTORY first calls `cake_pkg(CLONE ...)` to clone the package repo to <source-dir>
 # then calls `add_subdirectory` with the remainder of the parameters.
 #
-# For the description of the `NAME` and `URL` options please see `CakePkg()`.
+# ``<project-name>`` can be used to group packages, defaults to ``${PROJECT_NAME}``.
 #
+# For the description of the `NAME` and `URL` options please see `CakePkg()`.
 
 if(NOT CAKE_ADD_SUBDIRECTORY_INCLUDED)
   
@@ -58,21 +60,24 @@ if(NOT CAKE_ADD_SUBDIRECTORY_INCLUDED)
       list(APPEND add_subdir_args EXCLUDE_FROM_ALL)
     endif()
 
-    set(url_and_name_opts "")
+    set(opts "")
     if(ARG_URL)
-      list(APPEND url_and_name_opts URL "${ARG_URL}")
+      list(APPEND opts URL "${ARG_URL}")
     endif()
 
     if(ARG_NAME)
-      list(APPEND url_and_name_opts NAME "${ARG_NAME}")
+      list(APPEND opts NAME "${ARG_NAME}")
     endif()
 
-    if(NOT url_and_name_opts)
+    if(NOT opts)
         message(FATAL_ERROR "[cake_add_subdirectory] Either URL or NAME must be specified.")
     endif()
 
+    if(ARG_PROJECT)
+      list(APPEND opts PROJECT "${ARG_PROJECT}")
+    endif()
 
-    cake_pkg(CLONE URL "${ARG_URL}" DESTINATION "${ARG_SOURCEDIR_ABS}")
+    cake_pkg(CLONE ${opts} DESTINATION "${ARG_SOURCEDIR_ABS}")
 
     # retrieve the cid and definitions of this package, either by NAME or URL
     set(pk "")
@@ -94,6 +99,8 @@ if(NOT CAKE_ADD_SUBDIRECTORY_INCLUDED)
     set(repo_cid "${ans}")
     cake_repo_db_get_field_by_pk(definitions "${pk}")
     set(definitions "${ans}")
+
+    cake_set_session_var(CAKE_PKG_${repo_cid}_ADDED_AS_SUBDIRECTORY 1)
 
     # execute the repo's cake-depends.cmake script, if exists
     # otherwise try to execute the hardcoded dependency script from cake-depends-db*.cmake

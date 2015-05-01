@@ -307,13 +307,6 @@ if(NOT CAKE_PKG_INCLUDED)
     set(ans 1)
   endmacro()
 
-  # session vars
-  # - CAKE_PKG_<CID>_TRAVERSED_BY_PKG_PULL_NOW
-  # - CAKE_PKG_<CID>_TRAVERSED_BY_PKG_INSTALL_NOW
-  # - CAKE_PKG_<CID>_LOCAL_REPO_DIR
-  # - CAKE_PKG_<CID>_ADDED_AS_SUBDIRECTORY
-
-
   # pkg_url is the full, decorated URL (with optional query part to specify key-value pairs)
   # destination can be empty (= calculate destination under CAKE_PKG_REPOS_DIR)
   #   or non-empty (= this packaged has been added by a cake_add_subdirectory() call and will be part of the CMake project)
@@ -510,8 +503,7 @@ or by calling 'cakepkg REMOVE ...'.")
     cake_repo_db_get_field_by_pk(cid "${pk}")
     set(cid "${ans}")
     # check if destination is a subdirectory
-    get_directory_property(p DIRECTORY "${destination}" PARENT_DIRECTORY)
-    if(p)
+    if(CAKE_PKG_${cid}_ADDED_AS_SUBDIRECTORY)
       cake_message(STATUS "The package ${repo_url} has already been added as subdirectory, skipping installation. "
         "The consumer of this package (${CMAKE_CURRENT_SOURCE_DIR}) must be prepared to use the package as a target as opposed to"
         " a package found by find_package() or cake_find_package().")
@@ -519,7 +511,8 @@ or by calling 'cakepkg REMOVE ...'.")
     endif()
 
     _cake_execute_git_command_in_repo("log;-1;--pretty=format:%H" "${destination}" repo_sha)
-    set(build_pars_now "COMMIT=${repo_sha};${definitions}")
+    set(build_pars_now "COMMIT=${repo_sha}")
+    list(APPEND build_pars_now ${definitions})
 
     # if we've already installed this in this session just make sure the
     # current build settings are compatible with the first time's build settings
@@ -588,7 +581,7 @@ or by calling 'cakepkg REMOVE ...'.")
         set(last_build_pars "COMMIT=")
       endif()
 
-      if(last_build_pars STREQUAL build_pars_now) # last install is non-existent or outdated
+      if(NOT last_build_pars STREQUAL build_pars_now) # last install is non-existent or outdated
         cake_message(STATUS "Building the install target (${c}) for package ${descriptive_name}")
 
         # remove pars from last build
@@ -718,7 +711,8 @@ or by calling 'cakepkg REMOVE ...'.")
       _cake_pkg_clone("${ARG_URL}" "${ARG_DESTINATION}" "${project}" "${ARG_NAME}")
       set(pk "${ans}")
       if(ARG_INSTALL)
-        set(defs ${repo_definitions})
+        set(defs "")
+        list(APPEND defs ${repo_definitions})
         list(APPEND defs ${ARG_DEFINITIONS})
         list(SORT defs)
         list(REMOVE_DUPLICATES defs)
