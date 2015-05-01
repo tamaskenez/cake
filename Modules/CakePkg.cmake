@@ -370,18 +370,7 @@ if(NOT CAKE_PKG_INCLUDED)
         set(ans "${pk}" PARENT_SCOPE)
         return()
       else()
-        message(FATAL_ERROR
-"[cake_pkg] The repository ${repo_url} has already been cloned to
-    ${existing_destination},
-the current request is to clone it to
-    ${destination}.
-This sitatuation usually comes up when a repository is cloned as an external
-dependency to an automatic location then later you add the same repository as
-a subdirectory to your project.
-Possible solution: add this repository as subdirectory before all other
-references to it. You also need to remove the current clone manually, either
-by removing the directory ${existing_destination}
-or by calling 'cakepkg REMOVE ...'.")
+        message(FATAL_ERROR "[cake_pkg] The repository ${repo_url} has already been cloned to ${existing_destination}, the current request is to clone it to ${destination}. This sitatuation usually comes up when a repository is cloned as an external dependency to an automatic location then later you add the same repository as a subdirectory to your project. Possible solution: add this repository as subdirectory before all other references to it. You also need to remove the current clone manually, either by removing the directory ${existing_destination} or by calling 'cakepkg REMOVE ...'.")
       endif()
     endif()
 

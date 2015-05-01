@@ -32,6 +32,8 @@ next to do:
 - introduce required definitions (with '!'?), fix cake_pkg_install, also need required branch syntax
 - rectify cake-depends-db / cake-registry question, do we need two dbs, exact format of them
 - write cake registry functions
+- git clone should fix name if old name is cid a new name is descriptive
+
 uj package syntax:
 cake_pkg(INSTALL NAME ZLIB
   URL "wuefuwef?branch=..." DEFINITIONS -Dtalan=ez
