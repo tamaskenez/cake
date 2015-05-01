@@ -290,6 +290,22 @@ if(NOT CAKE_PKG_INCLUDED)
     endif()
   endmacro()
 
+  macro(_cake_need_empty_directory dn)
+    if(EXISTS "${dn}")
+      if(IS_DIRECTORY "${dn}")
+        file(GLOB g "${dn}/*")
+        if(g)
+          set(ans 0) # non-empty dir
+        else()
+          set(ans 1) # empty-dir
+        endif()
+      else()
+        set(ans 0) # existing file
+      endif()
+    endif()
+    file(MAKE_DIRECTORY "${dn}") # does not exist
+    set(ans 1)
+  endmacro()
 
   # session vars
   # - CAKE_PKG_<CID>_TRAVERSED_BY_PKG_PULL_NOW
@@ -306,18 +322,6 @@ if(NOT CAKE_PKG_INCLUDED)
   # name is the specified name
   # returns (ans) the cloned repo's primary key
   function(_cake_pkg_clone pkg_url destination project name)
-    if(destination STREQUAL "")
-      set(resolved_destination ${CAKE_PKG_REPOS_DIR}/${url_cid})
-    else()
-      if(NOT IS_ABSOLUTE "${destination}")
-        message(FATAL_ERROR "[cake_pkg] internal error, destination must be absolute.")
-      endif()
-      if(destination MATCHES "^${CAKE_PKG_REPOS_DIR}/")
-        message(FATAL_ERROR "[cake_pkg] <destination> must not be under ${CAKE_PKG_REPOS_DIR}.")
-      endif()
-      set(resolved_destination "${destination}")
-    endif()
-
     if(pkg_url)
       cake_parse_pkg_url("${pkg_url}" _ url_cid _ _)
       cake_repo_db_get_pk_by_field(cid "${url_cid}")
@@ -388,19 +392,30 @@ or by calling 'cakepkg REMOVE ...'.")
       endif()
     endif()
 
-    # clone new repo
-    if(IS_DIRECTORY "${resolved_destination}")
-      message(FATAL_ERROR "[cake_pkg] About to clone into directory ${resolved_destination} but the directory exists. 
-        Inspect the repository for changes and remove it manually.")
-    endif()
-
     if(pkg_url)
       cake_parse_pkg_url("${pkg_url}" repo_url url_cid options _)
     else()
       message(FATAL_ERROR "Package registry is not implemented, can't look up ${name}")
     endif()
 
-    file(MAKE_DIRECTORY "${resolved_destination}")
+    if(NOT destination)
+      set(resolved_destination ${CAKE_PKG_REPOS_DIR}/${url_cid})
+    else()
+      if(NOT IS_ABSOLUTE "${destination}")
+        message(FATAL_ERROR "[cake_pkg] internal error, destination must be absolute.")
+      endif()
+      if(destination MATCHES "^${CAKE_PKG_REPOS_DIR}/")
+        message(FATAL_ERROR "[cake_pkg] <destination> must not be under ${CAKE_PKG_REPOS_DIR}.")
+      endif()
+      set(resolved_destination "${destination}")
+    endif()
+
+    # clone new repo
+    _cake_need_empty_directory("${resolved_destination}")
+    if(NOT ans)
+      message(FATAL_ERROR "[cake_pkg] About to clone into directory ${resolved_destination} but the directory exists. 
+        Inspect it for possible unsaved changes and remove it manually.")
+    endif()
 
     # prepare parameters for git clone
     set(command_line clone)
@@ -415,7 +430,7 @@ or by calling 'cakepkg REMOVE ...'.")
     list(APPEND command_line --recursive)
 
     # prepare command line for git clone
-    list(APPEND command_line ${repo_url} ${url_cid})
+    list(APPEND command_line "${repo_url}" "${resolved_destination}")
     # git clone
     _cake_execute_git_command_in_repo("${command_line}" "" res_var)
 
@@ -431,7 +446,7 @@ or by calling 'cakepkg REMOVE ...'.")
 
     set(pk "${ans}")
 
-    cake_repo_db_add_fields(pk
+    cake_repo_db_add_fields(${pk}
       cid "${url_cid}"
       url "${repo_url}"
       project "${project}"
@@ -700,7 +715,7 @@ or by calling 'cakepkg REMOVE ...'.")
         set(repo_options "")
         set(repo_definitions "")
       endif()
-      _cake_pkg_clone(${ARG_URL} "${ARG_DESTINATION}" "${project}" "${ARG_NAME}")
+      _cake_pkg_clone("${ARG_URL}" "${ARG_DESTINATION}" "${project}" "${ARG_NAME}")
       set(pk "${ans}")
       if(ARG_INSTALL)
         set(defs ${repo_definitions})

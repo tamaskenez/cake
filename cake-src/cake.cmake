@@ -434,11 +434,11 @@ if(need_generate_step)
 			execute_process(COMMAND ${CMAKE_COMMAND}
 				${cmake_command_line}
 				RESULT_VARIABLE r
-				ERROR_VARIABLE e
+				#ERROR_VARIABLE e
 			)
 			if(e)
 				cake_message(STATUS "STDERR from the previous CMake configuration/generation run:")
-				cake_message("${e}")
+				message("${e}")
 			endif()
 			if(r)
 				message(FATAL_ERROR "[cake] CMake generate step failed, result: ${r}.")
