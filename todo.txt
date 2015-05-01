@@ -24,6 +24,23 @@ next to do:
   - when to add cake-depends.cmake
   - scenarios: library, library+test: standalone, library using 
 
+- cake_public_headers: add FILES or emphasize: no files after GLOB/GLOB_RECURSE
+- never change branch/commit automatically
+- repo_forall
+- repo_status
+- write repo report
+- introduce required definitions (with '!'?), fix cake_pkg_install, also need required branch syntax
+- rectify cake-depends-db / cake-registry question, do we need two dbs, exact format of them
+- write cake registry functions
+uj package syntax:
+cake_pkg(INSTALL NAME ZLIB
+  URL "wuefuwef?branch=..." DEFINITIONS -Dtalan=ez
+  REQUIRED URL "qweqwijeqw" DEFINITIONS -Dize=bize -Ucize)
+
+pkg_add_subdirectory(ide ZLIB URL ize)
+pkg_add(REGISTER ZLIB )
+list(APPEND PKG_REGISTRY_ZLIB "URL wfwoefnweiofn DEFINITIONS oinhwoeirnw")
+
 
 others:
 
