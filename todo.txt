@@ -6,7 +6,6 @@ next to do:
 - update readme.md
 
 - global git-clone depth
-- change cake_message(FATAL_ERROR) to message(FATAL_ERROR "[cake] ") for clearer stack report
 
 - add empty sample projects for single, master projects
 - advanced tips:
@@ -25,24 +24,16 @@ next to do:
   - scenarios: library, library+test: standalone, library using 
 
 - cake_public_headers: add FILES or emphasize: no files after GLOB/GLOB_RECURSE
-- never change branch/commit automatically
-- repo_forall
-- repo_status
-- write repo report
 - introduce required definitions (with '!'?), fix cake_pkg_install, also need required branch syntax
 - rectify cake-depends-db / cake-registry question, do we need two dbs, exact format of them
 - write cake registry functions
-- git clone should fix name if old name is cid a new name is descriptive
-
-uj package syntax:
-cake_pkg(INSTALL NAME ZLIB
-  URL "wuefuwef?branch=..." DEFINITIONS -Dtalan=ez
-  REQUIRED URL "qweqwijeqw" DEFINITIONS -Dize=bize -Ucize)
-
-pkg_add_subdirectory(ide ZLIB URL ize)
-pkg_add(REGISTER ZLIB )
+- git clone should fix name if old name is cid a new name is descriptive?
+- decide what to do with NAME, different default for ext/subdir, use last comp of URL, write empty if no name given, add descriptive name column, what?
+- report should sort result by project/name
+- project is really group, rename!
+- extra BRANCH option like DEFINITIONS?
 list(APPEND PKG_REGISTRY_ZLIB "URL wfwoefnweiofn DEFINITIONS oinhwoeirnw")
-
+URL shortcuts GITHUB..?
 
 others:
 
@@ -50,6 +41,7 @@ hunter https://github.com/ruslo/hunter
 cpm http://www.cpm.rocks/
 fips http://floooh.github.io/fips
 meson build system http://jpakkane.github.io/meson/
+cmakecpp
 
 biicode
 peru
