@@ -233,7 +233,7 @@ if(NOT CAKE_PKG_INCLUDED)
     if(output_var_out STREQUAL _)
       set(output_var_option "")
     else()
-      set(output_var_option OUTPUT_VARIABLE output_variable)
+      set(output_var_option OUTPUT_VARIABLE output_variable OUTPUT_STRIP_TRAILING_WHITESPACE)
     endif()
     execute_process(
       COMMAND ${GIT_EXECUTABLE} ${command_line}
@@ -370,7 +370,13 @@ if(NOT CAKE_PKG_INCLUDED)
         set(ans "${pk}" PARENT_SCOPE)
         return()
       else()
-        message(FATAL_ERROR "[cake_pkg] The repository ${repo_url} has already been cloned to ${existing_destination}, the current request is to clone it to ${destination}. This sitatuation usually comes up when a repository is cloned as an external dependency to an automatic location then later you add the same repository as a subdirectory to your project. Possible solution: add this repository as subdirectory before all other references to it. You also need to remove the current clone manually, either by removing the directory ${existing_destination} or by calling 'cakepkg REMOVE ...'.")
+        message(FATAL_ERROR "[cake_pkg] The repository ${repo_url} has already been cloned to "
+          "${existing_destination}, the current request is to clone it to ${destination}. This sitatuation "
+          "usually comes up when a repository is cloned as an external dependency to an automatic location "
+          "then later you add the same repository as a subdirectory to your project. Possible solution: "
+          "add this repository as subdirectory before all other references to it. You also need to remove "
+          "the current clone manually, either by removing the directory ${existing_destination} or by calling "
+          "'cakepkg REMOVE ...'.")
       endif()
     endif()
 
@@ -420,6 +426,32 @@ if(NOT CAKE_PKG_INCLUDED)
       message(FATAL_ERROR "[cake_pkg] git clone failed")
     endif()
 
+    execute_process(COMMAND ${GIT_EXECUTABLE} symbolic-ref -q --short HEAD
+      WORKING_DIRECTORY ${resolved_destination}
+      OUTPUT_VARIABLE o
+      ERROR_VARIABLE e
+      RESULT_VARIABLE r
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(r EQUAL 0)
+      # HEAD is a symbolic ref
+      set(branch "${o}")
+    elseif(r EQUAL 1)
+      # detached head
+      execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
+        WORKING_DIRECTORY ${resolved_destination}
+        OUTPUT_VARIABLE o
+        ERROR_VARIABLE e
+        RESULT_VARIABLE r
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+        if(r)
+          message(FATAL_ERROR "[cake_pkg] 'git rev-parse HEAD' returned ${r} (${e})")
+        else()
+          set(branch "${o}")
+        endif()
+    else()
+      message(FATAL_ERROR "[cake_pkg] 'git symbolic-ref -q --short HEAD' returned ${r} (${e}).")
+    endif()
+
     if(NOT name)
       set(name "${url_cid}")
     endif()
@@ -433,7 +465,8 @@ if(NOT CAKE_PKG_INCLUDED)
       url "${repo_url}"
       project "${project}"
       name "${name}"
-      destination "${resolved_destination}")
+      destination "${resolved_destination}"
+      branch "${branch}")
 
     set(ans "${pk}" PARENT_SCOPE)
 
@@ -712,28 +745,114 @@ if(NOT CAKE_PKG_INCLUDED)
         message(FATAL_ERROR "[cake_pkg] this option is not implemented")
       else()
         # batch report
-        file(GLOB dirs ${CAKE_PKG_REPOS_DIR}/*)
-        foreach(d ${dirs})
-          if(IS_DIRECTORY "${d}")
-            if(ARG_COMMAND)
-              set(command ${ARG_COMMAND})
-            elseif(ARG_CMDC)
-              set(command cmd /c ${ARG_CMDC})
-            elseif(ARG_SHC)
-              string(REPLACE \; " " v "${ARG_SHC}")
-              cmake_print_variables(ARG_SHC v)
-              set(command sh -c "${v}")
-            else()
-              message(FATAL_ERROR "[cake_pkg] internal error while assembling command")
-            endif()
-            cake_list_to_command_line_like_string(s "${command}")
-            message(STATUS "cd ${d}")
-            message(STATUS "${s}")
+        set(command "")
+        if(ARG_COMMAND)
+          set(command ${ARG_COMMAND})
+        elseif(ARG_CMDC)
+          set(command cmd /c ${ARG_CMDC})
+        elseif(ARG_SHC)
+          string(REPLACE \; " " v "${ARG_SHC}")
+          set(command sh -c "${v}")
+        elseif(ARG_STATUS)
+        elseif(ARG_DIFFLOG)
+        else()
+          message(FATAL_ERROR "[cake_pkg] internal error while assembling command")
+        endif()
+        string(REGEX MATCHALL "\t[0-9]+cid=" pks "${CAKE_REPO_DB}")
+        string(REGEX MATCHALL "[0-9]+" pks "${pks}")
+        cake_list_to_command_line_like_string(s "${command}")
+        foreach(pk ${pks})
+          cake_repo_db_get_field_by_pk(destination "${pk}")
+          set(destination "${ans}")
+          cake_repo_db_get_field_by_pk(branch "${pk}")
+          set(branch "${ans}")
+          cake_repo_db_get_field_by_pk(project "${pk}")
+          set(project "${ans}")
+          cake_repo_db_get_field_by_pk(name "${pk}")
+          set(name "${ans}")
+          if(command)
+            message(STATUS "cd ${destination}")
             execute_process(COMMAND ${command}
-              WORKING_DIRECTORY ${d}
+              WORKING_DIRECTORY "${destination}"
               RESULT_VARIABLE r)
             if(r)
               message(FATAL_ERROR "[cake_pkg] Result: ${r}")
+            endif()
+          elseif(ARG_STATUS OR ARG_DIFFLOG)
+            execute_process(COMMAND ${GIT_EXECUTABLE} status -s
+              WORKING_DIRECTORY "${destination}"
+              OUTPUT_VARIABLE o_gs
+              ERROR_VARIABLE e
+              RESULT_VARIABLE r)
+            if(r)
+              message(FATAL_ERROR "[cake_pkg] 'git status -s' failed: ${r} (${e})")
+            endif()
+            execute_process(COMMAND ${GIT_EXECUTABLE} log --oneline origin/${branch}..HEAD
+              WORKING_DIRECTORY "${destination}"
+              OUTPUT_VARIABLE o_before
+              ERROR_VARIABLE e
+              RESULT_VARIABLE r)
+            if(r)
+              message(FATAL_ERROR "[cake_pkg] 'git log --oneline origin/${branch}..HEAD' failed: ${r} (${e})")
+            endif()
+            execute_process(COMMAND ${GIT_EXECUTABLE} log --oneline HEAD..origin/${branch}
+              WORKING_DIRECTORY "${destination}"
+              OUTPUT_VARIABLE o_behind
+              ERROR_VARIABLE e
+              RESULT_VARIABLE r)
+            if(r)
+              message(FATAL_ERROR "[cake_pkg] 'git log --oneline HEAD..origin/${branch}' failed: ${r} (${e})")
+            endif()
+            string(REGEX REPLACE "[^\n]" "" o_before "${o_before}")
+            string(REGEX REPLACE "[^\n]" "" o_behind "${o_behind}")
+            string(LENGTH "${o_before}" o_before)
+            string(LENGTH "${o_behind}" o_behind)
+            if(ARG_STATUS)
+              if(NOT o_before EQUAL 0 OR NOT o_behind EQUAL 0 OR o_gs)
+                if(o_before EQUAL 0 AND o_behind EQUAL 0)
+                  message(STATUS "${name} (${project}): up to date origin/${branch}")
+                else()
+                  set(s "")
+                  if(o_before EQUAL 0)
+                    set(s "${o_behind} to pull from")
+                  elseif(o_behind EQUAL 0)
+                    set(s "${o_before} to push to")
+                  else()
+                    set(s "diverged (-${o_behind}/+${o_before}) from")
+                  endif()
+                  message(STATUS "${name} (${project}): ${s} [origin/${branch}]")
+                endif()
+                execute_process(COMMAND ${GIT_EXECUTABLE} status -sb
+                  WORKING_DIRECTORY ${destination}
+                  RESULT_VARIABLE r)
+                if(r)
+                  message(FATAL_ERROR "[cake_pkg] 'git status -sb' returned ${r} (${e})")
+                endif()
+              endif()
+            else()
+              # DIFFLOG
+              if(NOT o_before EQUAL 0 OR NOT o_behind EQUAL 0)
+                message(STATUS "${name} (${project})")
+                set(s "")
+                if(NOT o_behind EQUAL 0)
+                  message("\t${o_behind} to pull from [origin/${branch}]:")
+                  execute_process(COMMAND ${GIT_EXECUTABLE} log --oneline HEAD..origin/${branch}
+                    WORKING_DIRECTORY ${destination}
+                    RESULT_VARIABLE r)
+                  if(r)
+                    message(FATAL_ERROR "[cake_pkg] 'git log --oneline HEAD..origin/${branch}' returned ${r} (${e})")
+                  endif()
+                endif()
+                if(NOT o_before EQUAL 0)
+                  message("\t${o_before} to push to [origin/${branch}]:")
+                  execute_process(COMMAND ${GIT_EXECUTABLE} log --oneline origin/${branch}..HEAD
+                    WORKING_DIRECTORY ${destination}
+                    RESULT_VARIABLE r)
+                  if(r)
+                    message(FATAL_ERROR "[cake_pkg] 'git log --oneline origin/${branch}..HEAD' returned ${r} (${e})")
+                  endif()
+                endif()
+              endif()
             endif()
           endif()
         endforeach()
