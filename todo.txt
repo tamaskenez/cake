@@ -30,7 +30,6 @@ next to do:
 - git clone should fix name if old name is cid a new name is descriptive?
 - decide what to do with NAME, different default for ext/subdir, use last comp of URL, write empty if no name given, add descriptive name column, what?
 - report should sort result by project/name
-- project is really group, rename!
 - extra BRANCH option like DEFINITIONS?
 list(APPEND PKG_REGISTRY_ZLIB "URL wfwoefnweiofn DEFINITIONS oinhwoeirnw")
 URL shortcuts GITHUB..?

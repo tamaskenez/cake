@@ -10,14 +10,14 @@
 #   CAKE_ADD_SUBDIRECTORY(<source-dir> [<binary-dir>]
 #                         [EXCLUDE_FROM_ALL]
 #                         NAME <pkg-name> | URL <repo-url>
-#                         [PROJECT <project-name>])
+#                         [GROUP <group>])
 # 
 # CAKE_ADD_SUBDIRECTORY first calls `cake_pkg(CLONE ...)` to clone the package repo to <source-dir>
 # then calls `add_subdirectory` with the remainder of the parameters.
 #
-# ``<project-name>`` can be used to group packages, defaults to ``${PROJECT_NAME}``.
+# ``<group>`` can be used to group packages, defaults to ``${PROJECT_NAME}``.
 #
-# For the description of the `NAME` and `URL` options please see `CakePkg()`.
+# For the description of the `NAME` and `URL` options see `CakePkg()`.
 
 if(NOT CAKE_ADD_SUBDIRECTORY_INCLUDED)
   
@@ -45,7 +45,7 @@ if(NOT CAKE_ADD_SUBDIRECTORY_INCLUDED)
       get_filename_component(ARG_SOURCEDIR_ABS "${CMAKE_CURRENT_SOURCE_DIR}/${ARG_SOURCEDIR}" ABSOLUTE)
     endif()
 
-    cmake_parse_arguments(ARG "EXCLUDE_FROM_ALL" "URL;NAME" "" ${ARGN})
+    cmake_parse_arguments(ARG "EXCLUDE_FROM_ALL" "URL;NAME;GROUP" "" ${ARGN})
 
     set(add_subdir_args "${ARG_SOURCEDIR}")
 
@@ -73,8 +73,8 @@ if(NOT CAKE_ADD_SUBDIRECTORY_INCLUDED)
         message(FATAL_ERROR "[cake_add_subdirectory] Either URL or NAME must be specified.")
     endif()
 
-    if(ARG_PROJECT)
-      list(APPEND opts PROJECT "${ARG_PROJECT}")
+    if(ARG_GROUP)
+      list(APPEND opts GROUP "${ARG_GROUP}")
     endif()
 
     cake_pkg(CLONE ${opts} DESTINATION "${ARG_SOURCEDIR_ABS}")

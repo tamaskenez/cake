@@ -11,7 +11,7 @@
 #
 #   CAKE_PKG(CLONE
 #            NAME <name> | URL <repo-url>
-#            [PROJECT <project-name>]
+#            [GROUP <group>]
 #            [DESTINATION <dest-dir>])
 #
 # The command clones the repository to the given `<dest-dir>` or to an automatic location.
@@ -35,13 +35,13 @@
 #
 # Usually you don't call `cake_pkg(CLONE ...)` with `DESTINATION` directly, instead you call `cake_add_subdirectory()`.
 #
-# ``<project-name>`` can be used to group packages, defaults to ``${PROJECT_NAME}`` or to ``non-project`` in script mode.
+# ``<group>`` can be used to group packages, defaults to ``${PROJECT_NAME}`` or to ``ungrouped`` in script mode.
 #
 # 2. INSTALL
 #
 #   CAKE_PKG(CLONE
 #            NAME <name> | URL <repo-url>
-#            [PROJECT <project-name>]
+#            [GROUP <group>]
 #            [DESTINATION <dest-dir>]
 #            [DEFINITIONS <definitions>...])
 #
@@ -308,10 +308,10 @@ if(NOT CAKE_PKG_INCLUDED)
   # destination can be empty (= calculate destination under CAKE_PKG_REPOS_DIR)
   #   or non-empty (= this packaged has been added by a cake_add_subdirectory() call and will be part of the CMake project)
   # if destination is empty, since the package will not be built as a part of the CMake project (not a subdirectory)
-  # project is the the resolved project (either specified or default)
+  # group is the the resolved group (either specified or default)
   # name is the specified name
   # returns (ans) the cloned repo's primary key
-  function(_cake_pkg_clone pkg_url destination project name)
+  function(_cake_pkg_clone pkg_url destination group name)
     if(pkg_url)
       cake_parse_pkg_url("${pkg_url}" _ url_cid _ _)
       cake_repo_db_get_pk_by_field(cid "${url_cid}")
@@ -460,7 +460,7 @@ if(NOT CAKE_PKG_INCLUDED)
     cake_repo_db_add_fields(${pk}
       cid "${url_cid}"
       url "${repo_url}"
-      project "${project}"
+      group "${group}"
       name "${name}"
       destination "${resolved_destination}"
       branch "${branch}")
@@ -660,20 +660,20 @@ if(NOT CAKE_PKG_INCLUDED)
 
 # CAKE_PKG_REGISTRY_<NAME> = URL [DEFINITIONS]
 # CLONE:
-# - CLONE URL [DESTINATION] [NAME] [PROJECT]
-# - CLONE NAME [DESTINATION] [PROJECT]
+# - CLONE URL [DESTINATION] [NAME] [GROUP]
+# - CLONE NAME [DESTINATION] [GROUP]
 # INSTALL single:
-# - INSTALL URL [DESTINATION] [NAME] [PROJECT] [DEFINITIONS]
-# - INSTALL NAME [DESTINATION] [PROJECT] [DEFINITIONS]
+# - INSTALL URL [DESTINATION] [NAME] [GROUP] [DEFINITIONS]
+# - INSTALL NAME [DESTINATION] [GROUP] [DEFINITIONS]
 # INSTALL batch:
-# - INSTALL ALL^(PROJECT|IF)
+# - INSTALL ALL^(GROUP|IF)
 # REPORT single:
 # - STATUS|DIFFLOG|COMMAND|CMDC|SHC NAME
 # REPORT batch:
-# - STATUS|DIFFLOG|COMMAND|CMDC|SHC ALL^(PROJECT|IF)
+# - STATUS|DIFFLOG|COMMAND|CMDC|SHC ALL^(GROUP|IF)
 # REMOVE single
-# - REMOVE NAME|(ALL^(PROJECT|IF))
-# - LIST NAME|(ALL^(PROJECT|IF))
+# - REMOVE NAME|(ALL^(GROUP|IF))
+# - LIST NAME|(ALL^(GROUP|IF))
   function(cake_pkg)
 
     set(option_commands CLONE INSTALL STATUS DIFFLOG REMOVE LIST)
@@ -682,7 +682,7 @@ if(NOT CAKE_PKG_INCLUDED)
 
     cmake_parse_arguments(ARG
       "${option_commands}"
-      "URL;DESTINATION;NAME;PROJECT"
+      "URL;DESTINATION;NAME;GROUP"
       "${mv_commands};IF;DEFINITIONS"
       ${ARGV})
 
@@ -706,12 +706,12 @@ if(NOT CAKE_PKG_INCLUDED)
       endif()
     endif()
 
-    if(ARG_PROJECT)
-      set(project "${ARG_PROJECT}")
+    if(ARG_GROUP)
+      set(group "${ARG_GROUP}")
     elseif("${PROJECT_NAME}" STREQUAL "")
-      set(project "non-project")
+      set(group "ungrouped")
     else()
-      set(project "${PROJECT_NAME}")
+      set(group "${PROJECT_NAME}")
     endif()
 
     if((NOT ARG_NAME AND NOT ARG_URL) AND (ARG_CLONE OR ARG_INSTALL))
@@ -727,7 +727,7 @@ if(NOT CAKE_PKG_INCLUDED)
         set(repo_options "")
         set(repo_definitions "")
       endif()
-      _cake_pkg_clone("${ARG_URL}" "${ARG_DESTINATION}" "${project}" "${ARG_NAME}")
+      _cake_pkg_clone("${ARG_URL}" "${ARG_DESTINATION}" "${group}" "${ARG_NAME}")
       set(pk "${ans}")
       if(ARG_INSTALL)
         set(defs "")
@@ -763,8 +763,8 @@ if(NOT CAKE_PKG_INCLUDED)
           set(destination "${ans}")
           cake_repo_db_get_field_by_pk(branch "${pk}")
           set(branch "${ans}")
-          cake_repo_db_get_field_by_pk(project "${pk}")
-          set(project "${ans}")
+          cake_repo_db_get_field_by_pk(group "${pk}")
+          set(group "${ans}")
           cake_repo_db_get_field_by_pk(name "${pk}")
           set(name "${ans}")
           if(command)
@@ -807,7 +807,7 @@ if(NOT CAKE_PKG_INCLUDED)
             if(ARG_STATUS)
               if(NOT o_before EQUAL 0 OR NOT o_behind EQUAL 0 OR o_gs)
                 if(o_before EQUAL 0 AND o_behind EQUAL 0)
-                  message(STATUS "${name} (${project}): up to date origin/${branch}")
+                  message(STATUS "${name} (${group}): up to date origin/${branch}")
                 else()
                   set(s "")
                   if(o_before EQUAL 0)
@@ -817,7 +817,7 @@ if(NOT CAKE_PKG_INCLUDED)
                   else()
                     set(s "diverged (-${o_behind}/+${o_before}) from")
                   endif()
-                  message(STATUS "${name} (${project}): ${s} [origin/${branch}]")
+                  message(STATUS "${name} (${group}): ${s} [origin/${branch}]")
                 endif()
                 execute_process(COMMAND ${GIT_EXECUTABLE} status -sb
                   WORKING_DIRECTORY ${destination}
@@ -829,7 +829,7 @@ if(NOT CAKE_PKG_INCLUDED)
             else()
               # DIFFLOG
               if(NOT o_before EQUAL 0 OR NOT o_behind EQUAL 0)
-                message(STATUS "${name} (${project})")
+                message(STATUS "${name} (${group})")
                 set(s "")
                 if(NOT o_behind EQUAL 0)
                   message("\t${o_behind} to pull from [origin/${branch}]:")
