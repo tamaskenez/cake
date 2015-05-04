@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# forward arguments to cake.cmake
+# forward arguments to cakepkg.cmake
 # see help there
 
-cmake -P $(dirname $0)/cakepkg-src/cakepkg.cmake "$@"
+cmake -DCAKE_CURRENT_DIRECTORY=$PWD -P $(dirname $0)/cakepkg-src/cakepkg.cmake "$@"

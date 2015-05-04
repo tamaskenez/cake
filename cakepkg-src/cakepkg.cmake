@@ -4,6 +4,8 @@
 
 cmake_minimum_required(VERSION 3.2)
 
+file(TO_CMAKE_PATH "${CAKE_CURRENT_DIRECTORY}" CAKE_CURRENT_DIRECTORY)
+
 get_filename_component(CAKE_ROOT ${CMAKE_CURRENT_LIST_DIR}/.. ABSOLUTE)
 
 include(${CAKE_ROOT}/Cake.cmake)

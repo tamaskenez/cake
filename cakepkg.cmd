@@ -1,4 +1,4 @@
-rem forward arguments to cake.cmake
+rem forward arguments to cakepkg.cmake
 rem see help there
 
-cmake -P %~d0\%~p0\cakepkg-src\cakepkg.cmake %*
+cmake -DCAKE_CURRENT_DIRECTORY=%CD% -P %~d0\%~p0\cakepkg-src\cakepkg.cmake %*
