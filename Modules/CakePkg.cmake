@@ -35,7 +35,7 @@
 #
 # Usually you don't call `cake_pkg(CLONE ...)` with `DESTINATION` directly, instead you call `cake_add_subdirectory()`.
 #
-# ``<group>`` can be used to group packages, defaults to ``${PROJECT_NAME}`` or to ``ungrouped`` in script mode.
+# ``<group>`` can be used to group packages, defaults to ``${PROJECT_NAME}`` or to ``_ungrouped_`` in script mode.
 #
 # 2. INSTALL
 #
@@ -130,6 +130,21 @@ if(NOT CAKE_PKG_INCLUDED)
 
   # there is run-once code after the function definitions
 
+  # creates urls like github.com/dir/a from https://user:psw@github.com:123/dir/a.git
+  # works for git@github.com:a/b, too
+  # returns ans
+  function(cake_get_humanish_part_of_url url)
+    string(REGEX REPLACE "^[a-zA-Z][a-zA-Z0-9+.-]*:" "" ans "${url}") # strip leading scheme information
+    string(REGEX REPLACE "^/+" "" ans "${ans}") # strip leading slashes
+    string(REGEX REPLACE "^[^@]*@" "" ans "${ans}") # strip leading userinfo
+    string(REGEX REPLACE ":[0-9]+/" "/" ans "${ans}") # remove port
+    string(REGEX REPLACE "/+$" "" ans "${ans}") # strip trailing slashes
+    string(REGEX REPLACE "\\.git$" "" ans "${ans}") # strip trailing .git
+    string(REGEX REPLACE "/+$" "" ans "${ans}") # strip trailing slashes
+    set(ans "${ans}" PARENT_SCOPE)
+  endfunction
+
+
   # strips URL scheme, .git extension, splits trailiing :commitish
   # for an input url like http://user:psw@a.b.com/c/d/e.git?branch=release/2.3&-DWITH_SQLITE=1&-DBUILD_SHARED_LIBS=1&depth=1
   # we need the following parts:
@@ -142,29 +157,14 @@ if(NOT CAKE_PKG_INCLUDED)
   #   used for passing build parameters to the package, like autoconf's --with... and macports' variants
   function(cake_parse_pkg_url URL REPO_URL_OUT REPO_URL_CID_OUT OPTIONS_OUT DEFINITIONS_OUT)
 
-    string(REGEX MATCH "^([^:]+://)?([^/]*)(/[^?]+)(\\?(.*))?$" v "${URL}")
+    string(REGEX MATCH "^([^?]+)\\??(.*)$" _ "${URL}")
+    set(repo_url "${CMAKE_MATCH_1}")
+    set(query "${CMAKE_MATCH_2}")
 
-    set(repo_url "${CMAKE_MATCH_1}${CMAKE_MATCH_2}${CMAKE_MATCH_3}")
+    string(REPLACE & \; query "${query}")
 
-    string(FIND "${CMAKE_MATCH_2}" @ at_pos)
-    if(at_pos GREATER -1)
-      math(EXPR at_pos_plus_one "${at_pos}+1")
-      string(SUBSTRING "${CMAKE_MATCH_2}" ${at_pos_plus_one} -1 cm2)
-    else()
-      set(cm2 "${CMAKE_MATCH_2}")
-    endif()
-
-    set(cm3 "${CMAKE_MATCH_3}")
-    string(REPLACE & \; query "${CMAKE_MATCH_5}")
-
-    # remove trailing / and .git 
-    if(cm3 MATCHES "/?(.git)?/?$")
-      string(LENGTH "${cm3}" al)
-      string(LENGTH "${CMAKE_MATCH_0}" l)
-      math(EXPR al_minus_l "${al}-${l}")
-      string(SUBSTRING "${cm3}" 0 ${al_minus_l} cm3)
-    endif()
-    string(MAKE_C_IDENTIFIER "${cm2}${cm3}" repo_url_cid)
+    cake_get_humanish_part_of_url("${repo_url}")
+    string(MAKE_C_IDENTIFIER "${ans}" repo_url_cid)
 
     set(options "")
     set(definitions "")
@@ -312,6 +312,17 @@ if(NOT CAKE_PKG_INCLUDED)
   # name is the specified name
   # returns (ans) the cloned repo's primary key
   function(_cake_pkg_clone pkg_url destination group name)
+    if(NOT name AND NOT pkg_url)
+      message(FATAL_ERROR "[cake_pkg]: Internal error, neither pkg_url nor name is specified in _cake_pkg_clone.")
+    endif()
+
+    if(name AND CAKE_PKG_NAME_DB_${name})
+      cmake_parse_arguments(ARG "" "URL" "" ${CAKE_PKG_NAME_DB_${name}})
+      if(ARG_URL)
+        set(pkg_url "${ARG_URL}")
+      endif()
+    endif()
+
     if(pkg_url)
       cake_parse_pkg_url("${pkg_url}" _ url_cid _ _)
       cake_repo_db_get_pk_by_field(cid "${url_cid}")
@@ -380,7 +391,11 @@ if(NOT CAKE_PKG_INCLUDED)
     if(pkg_url)
       cake_parse_pkg_url("${pkg_url}" repo_url url_cid options _)
     else()
-      message(FATAL_ERROR "Package registry is not implemented, can't look up ${name}")
+      if(name)
+        message(FATAL_ERROR "[cake_pkg]: Looking up the package name ${name} failed.")
+      else()
+        message(FATAL_ERROR "[cake_pkg]: Internal error, pkg_url or name should be set at this point.")
+      endif()
     endif()
 
     if(NOT destination)
@@ -449,10 +464,6 @@ if(NOT CAKE_PKG_INCLUDED)
       message(FATAL_ERROR "[cake_pkg] 'git symbolic-ref -q --short HEAD' returned ${r} (${e}).")
     endif()
 
-    if(NOT name)
-      set(name "${url_cid}")
-    endif()
-
     cake_repo_db_next_pk()
 
     set(pk "${ans}")
@@ -513,6 +524,17 @@ if(NOT CAKE_PKG_INCLUDED)
       endif()
     endforeach() # for each items in build pars now
     set(ans 1 PARENT_SCOPE)
+  endfunction()
+
+  function(cake_repo_db_get_project_title pk)
+    cake_repo_db_get_field_by_pk(name "${pk}")
+    if(ans)
+      set(ans "${ans}" PARENT_SCOPE)
+    else()
+      cake_repo_db_get_field_by_pk(url "${pk}")
+      cake_get_humanish_part_of_url(ans)
+      set(ans "${ans}" PARENT_SCOPE)
+    endif()
   endfunction()
 
   # pk: primary key of entry in repo_db
@@ -584,10 +606,7 @@ if(NOT CAKE_PKG_INCLUDED)
       message(FATAL_ERROR "[cake] CAKE_PKG_CONFIGURATION_TYPES is empty. It should be left undefined (then defaults to 'Release') or set to valid values.")
     endif()
 
-    cake_repo_db_get_field_by_pk(name "${pk}")
-    if(ans STREQUAL cid)
-      cake_repo_db_get_field_by_pk(url "${pk}")
-    endif()
+    cake_repo_db_get_project_title("${pk}")
     set(descriptive_name "${ans}")
 
     foreach(c ${CAKE_PKG_CONFIGURATION_TYPES})
@@ -709,7 +728,7 @@ if(NOT CAKE_PKG_INCLUDED)
     if(ARG_GROUP)
       set(group "${ARG_GROUP}")
     elseif("${PROJECT_NAME}" STREQUAL "")
-      set(group "ungrouped")
+      set(group "_ungrouped_")
     else()
       set(group "${PROJECT_NAME}")
     endif()
@@ -765,8 +784,8 @@ if(NOT CAKE_PKG_INCLUDED)
           set(branch "${ans}")
           cake_repo_db_get_field_by_pk(group "${pk}")
           set(group "${ans}")
-          cake_repo_db_get_field_by_pk(name "${pk}")
-          set(name "${ans}")
+          cake_repo_db_get_project_title("${pk}")
+          set(title "${ans}")
           if(command)
             message(STATUS "cd ${destination}")
             execute_process(COMMAND ${command}
@@ -807,7 +826,7 @@ if(NOT CAKE_PKG_INCLUDED)
             if(ARG_STATUS)
               if(NOT o_before EQUAL 0 OR NOT o_behind EQUAL 0 OR o_gs)
                 if(o_before EQUAL 0 AND o_behind EQUAL 0)
-                  message(STATUS "${name} (${group}): up to date origin/${branch}")
+                  message(STATUS "${title}: up to date origin/${branch}")
                 else()
                   set(s "")
                   if(o_before EQUAL 0)
@@ -817,7 +836,7 @@ if(NOT CAKE_PKG_INCLUDED)
                   else()
                     set(s "diverged (-${o_behind}/+${o_before}) from")
                   endif()
-                  message(STATUS "${name} (${group}): ${s} [origin/${branch}]")
+                  message(STATUS "${title}: ${s} [origin/${branch}]")
                 endif()
                 execute_process(COMMAND ${GIT_EXECUTABLE} status -sb
                   WORKING_DIRECTORY ${destination}
@@ -829,7 +848,7 @@ if(NOT CAKE_PKG_INCLUDED)
             else()
               # DIFFLOG
               if(NOT o_before EQUAL 0 OR NOT o_behind EQUAL 0)
-                message(STATUS "${name} (${group})")
+                message(STATUS "${title}")
                 set(s "")
                 if(NOT o_behind EQUAL 0)
                   message("\t${o_behind} to pull from [origin/${branch}]:")
