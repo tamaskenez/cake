@@ -647,18 +647,22 @@ if(NOT CAKE_PKG_INCLUDED)
         # call cmake configure
         set(binary_dir ${CAKE_PKG_BUILD_DIR}/${shortcid}_${c})
         set(command_line
-            -H${destination} -B${binary_dir}
             -DCMAKE_BUILD_TYPE=${c}
             -DCAKE_ROOT=${CAKE_ROOT}
             ${CAKE_PKG_CMAKE_OPTIONS}
             ${unset_definitions}
             ${definitions}
             -DCAKE_PKG_LOAD_THE_SESSION_VARS=1
+            "${destination}"
         )
 
+        cake_message(STATUS "cd ${binary_dir}")
         cake_list_to_command_line_like_string(s "${command_line}")
         cake_message(STATUS "cmake ${s}")
-        execute_process(COMMAND ${CMAKE_COMMAND} ${command_line} RESULT_VARIABLE res_var)
+        file(MAKE_DIRECTORY "${binary_dir}")
+        execute_process(COMMAND ${CMAKE_COMMAND} ${command_line}
+          RESULT_VARIABLE res_var
+          WORKING_DIRECTORY "${binary_dir}")
         if(res_var)
           message(FATAL_ERROR "[cake] CMake configuration failed, check the previous lines for the actual error.")
         endif()
