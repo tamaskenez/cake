@@ -403,7 +403,8 @@ if(NOT CAKE_PKG_INCLUDED)
       cake_get_humanish_part_of_url("${repo_url}")
       get_filename_component(f "${ans}" NAME)
       string(RANDOM LENGTH 2 ALPHABET 0123456789 r)
-      set(resolved_destination ${CAKE_PKG_REPOS_DIR}/${f}_${r})
+      set(shortcid "${f}_${r}")
+      set(resolved_destination ${CAKE_PKG_REPOS_DIR}/${shortcid})
     else()
       if(NOT IS_ABSOLUTE "${destination}")
         message(FATAL_ERROR "[cake_pkg] internal error, destination must be absolute.")
@@ -478,7 +479,8 @@ if(NOT CAKE_PKG_INCLUDED)
       group "${group}"
       name "${name}"
       destination "${resolved_destination}"
-      branch "${branch}")
+      branch "${branch}"
+      shortcid "${shortcid}")
 
     set(ans "${pk}" PARENT_SCOPE)
 
@@ -547,6 +549,8 @@ if(NOT CAKE_PKG_INCLUDED)
     set(destination "${ans}")
     cake_repo_db_get_field_by_pk(cid "${pk}")
     set(cid "${ans}")
+    cake_repo_db_get_field_by_pk(shortcid "${pk}")
+    set(shortcid "${ans}")
     # check if destination is a subdirectory
     if(CAKE_PKG_${cid}_ADDED_AS_SUBDIRECTORY)
       cake_message(STATUS "The package ${repo_url} has already been added as subdirectory, skipping installation. "
@@ -615,7 +619,7 @@ if(NOT CAKE_PKG_INCLUDED)
 
     foreach(c ${CAKE_PKG_CONFIGURATION_TYPES})
       # read pars of last build (install)
-      set(last_build_pars_path ${CAKE_PKG_LAST_BUILD_PARS_DIR}/${cid}_${c})
+      set(last_build_pars_path ${CAKE_PKG_LAST_BUILD_PARS_DIR}/${shortcid}_${c})
       set(last_build_pars "")
       if(EXISTS "${last_build_pars_path}")
         file(STRINGS "${last_build_pars_path}" last_build_pars)
@@ -641,7 +645,7 @@ if(NOT CAKE_PKG_INCLUDED)
         endforeach()
 
         # call cmake configure
-        set(binary_dir ${CAKE_PKG_BUILD_DIR}/${cid}_${c})
+        set(binary_dir ${CAKE_PKG_BUILD_DIR}/${shortcid}_${c})
         set(command_line
             -H${destination} -B${binary_dir}
             -DCMAKE_BUILD_TYPE=${c}
