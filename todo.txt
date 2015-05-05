@@ -27,12 +27,10 @@ next to do:
 - introduce required definitions (with '!'?), fix cake_pkg_install, also need required branch syntax
 - rectify cake-depends-db / cake-registry question, do we need two dbs, exact format of them
 - write cake registry functions
-- git clone should fix name if old name is cid a new name is descriptive?
-- decide what to do with NAME, different default for ext/subdir, use last comp of URL, write empty if no name given, add descriptive name column, what?
-- report should sort result by project/name
+- report should sort result by group/name
 - extra BRANCH option like DEFINITIONS?
 list(APPEND PKG_REGISTRY_ZLIB "URL wfwoefnweiofn DEFINITIONS oinhwoeirnw")
-URL shortcuts GITHUB..?
+- CAKE_PKG_CLONE_DEPTH CAKE_PKG_CLONE_DEPTH_SUBDIR, CAKE_PKG_CLONE_DEPTH_EXTERN
 
 others:
 
