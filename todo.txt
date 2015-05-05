@@ -1,13 +1,7 @@
 next to do:
 
-- create and use mapdbm with this
 - provide installation options and snippets
-- update all command helps
-- update readme.md
 
-- global git-clone depth
-
-- add empty sample projects for single, master projects
 - advanced tips:
   - different directory layouts for single, master projects
   - gradual conversion of legacy projects (cake_pkg(INSTALL))
@@ -18,19 +12,10 @@ next to do:
 
 - tutorial faq:
   - use cake in CMakeLists or not?
-  - if not what to do with find_package(): keep as is, if TARGET
   - use cake in config-module?
   - when to add cake-depends.cmake
   - scenarios: library, library+test: standalone, library using 
 
-- cake_public_headers: add FILES or emphasize: no files after GLOB/GLOB_RECURSE
-- introduce required definitions (with '!'?), fix cake_pkg_install, also need required branch syntax
-- rectify cake-depends-db / cake-registry question, do we need two dbs, exact format of them
-- write cake registry functions
-- report should sort result by group/name
-- extra BRANCH option like DEFINITIONS?
-list(APPEND PKG_REGISTRY_ZLIB "URL wfwoefnweiofn DEFINITIONS oinhwoeirnw")
-- CAKE_PKG_CLONE_DEPTH CAKE_PKG_CLONE_DEPTH_SUBDIR, CAKE_PKG_CLONE_DEPTH_EXTERN
 
 others:
 
@@ -39,7 +24,6 @@ cpm http://www.cpm.rocks/
 fips http://floooh.github.io/fips
 meson build system http://jpakkane.github.io/meson/
 cmakecpp
-
 biicode
 peru
 https://github.com/ryppl/ryppl abandoned 20130330, http://ryppl.org down
@@ -55,16 +39,4 @@ git notes:
 - git rev-parse --symbolic-full-name v3.0.1 -> refs/tags/v3.0.1
 - git rev-parse [--symbolic-full-ref] remote-only-branch -> nonzero error code
 - git symbolic-ref -q HEAD -> nonzero error code if detached
-
-
-
-The relevant line in <code>cake-depends-db.cmake</code>:</p>
-
-
-
-<p>It describes that the <em>libpng</em> package is dependent on the <em>zlib</em> which is to be cloned at depth = 1.</p>
-
-<p>The second method is to place a file <code>CakeDepends.cmake</code> in the root of the package. This file will be included before the build. The script should set the <code>CAKE_DEPENDS</code> variable to the list of dependencies. For <em>libpng</em> it would look like this:</p>
-
-<p>This script also receives the CMake cache variables defined in the URL. So a hypothetical package which can be built with or without <em>SQLite</em> support would contain the following <code>CakeDepends.cmake</code>:</p>
 
