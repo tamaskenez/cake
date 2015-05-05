@@ -399,7 +399,11 @@ if(NOT CAKE_PKG_INCLUDED)
     endif()
 
     if(NOT destination)
-      set(resolved_destination ${CAKE_PKG_REPOS_DIR}/${url_cid})
+      # last dir of url + random
+      cake_get_humanish_part_of_url("${repo_url}")
+      get_filename_component(f "${ans}" NAME)
+      string(RANDOM LENGTH 2 ALPHABET 0123456789 r)
+      set(resolved_destination ${CAKE_PKG_REPOS_DIR}/${f}_${r})
     else()
       if(NOT IS_ABSOLUTE "${destination}")
         message(FATAL_ERROR "[cake_pkg] internal error, destination must be absolute.")
