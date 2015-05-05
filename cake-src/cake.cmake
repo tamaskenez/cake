@@ -423,18 +423,20 @@ if(need_generate_step)
 				unset(cbt)
 			endif()
 			set(cmake_command_line
-				"-H${cake_source_dir}"
-				"-B${binary_dir}"
 				"-DCAKE_ROOT=${CAKE_ROOT}"
 				"${opt_generate}"
 				"${cbt}"
+				"${cake_source_dir}"
 			)
+			file(MAKE_DIRECTORY "${binary_dir}")
+			cake_message(STATUS "cd ${binary_dir}")
 			cake_list_to_command_line_like_string(s "${cmake_command_line}")
 			cake_message(STATUS "cmake ${s}")
 			execute_process(COMMAND ${CMAKE_COMMAND}
 				${cmake_command_line}
 				RESULT_VARIABLE r
 				#ERROR_VARIABLE e
+				WORKING_DIRECTORY "${binary_dir}"
 			)
 			if(e)
 				cake_message(STATUS "STDERR from the previous CMake configuration/generation run:")
