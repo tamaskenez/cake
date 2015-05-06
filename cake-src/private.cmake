@@ -32,8 +32,8 @@ macro(update_generate_always _ubdp_v _updb_source)
 endmacro()
 
 set(_load_module_core_vars
-	CAKE_OPTIONS
-	CAKE_CMAKE_NATIVE_TOOL_OPTIONS
+	CAKE_ARGS
+	CAKE_CMAKE_NATIVE_TOOL_ARGS
 	CAKE_MODULE_PATH)
 
 function(load_module_core _lmc_path)
@@ -55,15 +55,15 @@ macro(load_module _lm_path)
 		unset(_lmc_${i})
 	endforeach()
 	load_module_core("${_lm_path}")
-	list(APPEND CAKE_OPTIONS ${_lmc_CAKE_OPTIONS})
-	list(APPEND CAKE_CMAKE_NATIVE_TOOL_OPTIONS ${_lmc_CAKE_CMAKE_NATIVE_TOOL_OPTIONS})
+	list(APPEND CAKE_ARGS ${_lmc_CAKE_ARGS})
+	list(APPEND CAKE_CMAKE_NATIVE_TOOL_ARGS ${_lmc_CAKE_CMAKE_NATIVE_TOOL_ARGS})
 	list(APPEND CAKE_MODULE_PATH ${_lmc_CAKE_MODULE_PATH})
 endmacro()
 
 set(_load_config_core_vars
 	CAKE_BINARY_DIR_PREFIX
-	CAKE_OPTIONS
-	CAKE_CMAKE_NATIVE_TOOL_OPTIONS
+	CAKE_ARGS
+	CAKE_CMAKE_NATIVE_TOOL_ARGS
 	CAKE_GENERATE_ALWAYS
 	CAKE_MODULE_PATH)
 
@@ -88,7 +88,7 @@ macro(load_config2 _lm_path)
 	load_config_core("${_lm_path}")
 	foreach(i ${_load_config_core_vars})
 		if(DEFINED _lmc_${i})
-			if(i MATCHES "^(CAKE_OPTIONS|CAKE_CMAKE_NATIVE_TOOL_OPTIONS|CAKE_MODULE_PATH)$")
+			if(i MATCHES "^(CAKE_ARGS|CAKE_CMAKE_NATIVE_TOOL_ARGS|CAKE_MODULE_PATH)$")
 				list(APPEND ${i} ${_lmc_${i}})
 			elseif(NOT DEFINED ${i})
 				set(${i} ${_lmc_${i}})
@@ -147,7 +147,7 @@ endmacro()
 # - collects the new modules from -m options
 # - sets parent scope opt_modules
 function(collect_modules)
-	# this function always starts with the unmodified variables, like CAKE_OPTIONS, CAKE_CMAKE_NATIVE_TOOL_OPTIONS
+	# this function always starts with the unmodified variables, like CAKE_ARGS, CAKE_CMAKE_NATIVE_TOOL_ARGS
 	# it will modify only the opt_modules of the parent scope
 
 	# load modules known so far
@@ -155,7 +155,7 @@ function(collect_modules)
 
 	# parse options for -m and append to opt_modules
 	unset(last_switch)
-	foreach(a ${CAKE_OPTIONS})
+	foreach(a ${CAKE_ARGS})
 		if(last_switch)
 			if(last_switch MATCHES "^-m$")
 				append_to_opt_modules("${a}")

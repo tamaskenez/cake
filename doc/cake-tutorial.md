@@ -16,18 +16,18 @@ Cake Configuration Variables
 
 The following environment variables control the `cake` command:
 
-### CAKE_CMAKE_OPTIONS
+### CAKE_CMAKE_ARGS
 
-The `cmake` options listed here will be forwarded the `cmake` configuration phase. Example:
+The arguments fir the `cmake` command listed here will be forwarded the `cmake` configuration phase. Example:
 
-    export CAKE_CMAKE_OPTIONS="-DINSTALL_PREFIX=$PWD/_install -GXcode"
-    cake . # appends the options defined above
+    export CAKE_CMAKE_ARGS="-DINSTALL_PREFIX=$PWD/_install -GXcode"
+    cake . # appends the args defined above
     
-### CAKE_CMAKE_NATIVE_TOOL_OPTIONS
+### CAKE_CMAKE_NATIVE_TOOL_ARGS
 
-Similar to `CAKE_CMAKE_OPTIONS`, `CAKE_CMAKE_NATIVE_TOOL_OPTIONS` will be passed after the '--' in the `cmake --build` command:
+Similar to `CAKE_CMAKE_ARGS`, `CAKE_CMAKE_NATIVE_TOOL_ARGS` will be passed after the '--' in the `cmake --build` command:
 
-    export CAKE_CMAKE_NATIVE_TOOL_OPTIONS="-j"
+    export CAKE_CMAKE_NATIVE_TOOL_ARGS="-j"
     cake . --build # calls `cmake --build ... -- -j` in turn
 
 ### CAKE_BINARY_DIR_PREFIX
@@ -47,7 +47,7 @@ You can also set the enviroment variable `CAKE_CONFIG_FILE` point to a configura
 And the content of `$HOME/my-cake-cfg.cmake`:
 
     set(CAKE_BINARY_PREFIX ${CMAKE_CURRENT_LIST_DIR}/_build)
-    set(CAKE_CMAKE_OPTIONS -GXcode
+    set(CAKE_CMAKE_ARGS -GXcode
         -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_LIST_DIR}/_install
         -DCMAKE_PREFIX_PATH=${CMAKE_CURRENT_LIST_DIR}/_install)
 

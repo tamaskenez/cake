@@ -240,12 +240,12 @@ include(${CMAKE_CURRENT_LIST_DIR}/set_cake_tmp_dir.cmake)
 # load config from env vars
 include(${CAKE_ROOT}/Modules/CakeLoadConfig.cmake)
 
-set(CAKE_OPTIONS "${CAKE_CMAKE_OPTIONS}")
-list(APPEND CAKE_OPTIONS "${cake_options}")
-set(CAKE_NATIVE_TOOL_OPTIONS "${CAKE_CMAKE_NATIVE_TOOL_OPTIONS}")
-list(APPEND CAKE_NATIVE_TOOL_OPTIONS "${cake_native_tool_options}")
+set(CAKE_ARGS "${CAKE_CMAKE_ARGS}")
+list(APPEND CAKE_ARGS "${cake_options}")
+set(CAKE_NATIVE_TOOL_ARGS "${CAKE_CMAKE_NATIVE_TOOL_ARGS}")
+list(APPEND CAKE_NATIVE_TOOL_ARGS "${cake_native_tool_options}")
 
-# initialize variables for parsing the options in CAKE_OPTIONS
+# initialize variables for parsing the options in CAKE_ARGS
 
 unset(need_generate_step) # if generate step is needed
 unset(opt_build) # list of args for the build step
@@ -254,12 +254,12 @@ unset(opt_targets) # list specific targets to build (collected list of parameter
 unset(opt_configs) # configs to generate or build (Debug, Release, etc..) (collected list of parameters to -c|--config)
 unset(opt_rm_bin) # --rm-bin was specified
 
-# parse CAKE_OPTIONS
+# parse CAKE_ARGS
 # also remember the last value of -G and -DCMAKE_BUILD_TYPE options
 unset(last_switch)
 unset(cmake_generator_from_command_line)
 unset(cmake_build_type)
-foreach(a ${CAKE_OPTIONS})
+foreach(a ${CAKE_ARGS})
 	if(last_switch)
 		if(last_switch MATCHES "^(-A|-C|-D|-U|-G|-T)$")
 			list(APPEND opt_generate ${last_switch} "${a}")
@@ -523,7 +523,7 @@ if(need_build_step)
 				${config_option}
 				${opt_build}
 				--
-				${CAKE_NATIVE_TOOL_OPTIONS}
+				${CAKE_NATIVE_TOOL_ARGS}
 			)
 			cake_list_to_command_line_like_string(s ${cmake_command_line})
 			cake_message(STATUS "cmake ${s}")

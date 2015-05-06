@@ -266,11 +266,11 @@ endif()
 
 <h3><span style="color: rgb(255, 153, 0); font-size: 19px;"><em>Cake</em> Configuration Variables</span></h3>
 
-<p>When you install a package with <code>cakepkg</code> (or <code>cake_pkg</code>, <code>cake_find_package</code>), <em>Cake</em> eventually calls the <code>cmake</code> command to configure, build and install the package. The parameters <em>Cake</em> passes to <code>cmake</code> can be controlled by the <em>Cake</em> configuration variables: <code>CAKE_PKG_CMAKE_OPTIONS</code>, <code>CAKE_PKG_CMAKE_NATIVE_TOOL_OPTIONS</code>, and <code>CAKE_PKG_CONFIGURATION_TYPES</code>. You can set them in the shell environment or in your CMakeLists.txt.</p>
+<p>When you install a package with <code>cakepkg</code> (or <code>cake_pkg</code>, <code>cake_find_package</code>), <em>Cake</em> eventually calls the <code>cmake</code> command to configure, build and install the package. The parameters <em>Cake</em> passes to <code>cmake</code> can be controlled by the <em>Cake</em> configuration variables: <code>CAKE_PKG_CMAKE_ARGS</code>, <code>CAKE_PKG_CMAKE_NATIVE_TOOL_ARGS</code>, and <code>CAKE_PKG_CONFIGURATION_TYPES</code>. You can set them in the shell environment or in your CMakeLists.txt.</p>
 
 <ul>
-  <li><code>CAKE_PKG_CMAKE_OPTIONS</code> is the most important one. This variable contains the <code>cmake</code>&#39;s command line options the package will be configured with. It usually contains a <code>-DCMAKE_INSTALL_PREFIX=&lt;...&gt;</code> definition to specify where the package will be installed to. Related <em>Cake</em>-specific directories, like local copy of the repository and build directory will be also created under this directory (under <code>${CMAKE_INSTALL_PREFIX}/var</code>).</li>
-  <li>The options in <code>CAKE_PKG_CMAKE_NATIVE_TOOL_OPTIONS</code> will be added to the end of the <code>cmake --build</code> command after the <code>&#39;--&#39;</code>.</li>
+  <li><code>CAKE_PKG_CMAKE_ARGS</code> is the most important one. This variable contains the <code>cmake</code>&#39;s command line options the package will be configured with. It usually contains a <code>-DCMAKE_INSTALL_PREFIX=&lt;...&gt;</code> definition to specify where the package will be installed to. Related <em>Cake</em>-specific directories, like local copy of the repository and build directory will be also created under this directory (under <code>${CMAKE_INSTALL_PREFIX}/var</code>).</li>
+  <li>The options in <code>CAKE_PKG_CMAKE_NATIVE_TOOL_ARGS</code> will be added to the end of the <code>cmake --build</code> command after the <code>&#39;--&#39;</code>.</li>
   <li><code>CAKE_PKG_CONFIGURATION_TYPES</code> usually contains a list like <code>&quot;Debug;Release&quot;</code>. It controls the configurations the packages will be built in.</li>
 </ul>
 
@@ -279,7 +279,7 @@ endif()
 <pre>
 set(CAKE_PKG_CONFIGURATION_TYPES Debug Release)
 
-set(CAKE_PKG_CMAKE_OPTIONS
+set(CAKE_PKG_CMAKE_ARGS
 
     -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_LIST_DIR}/_install
 

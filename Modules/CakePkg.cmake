@@ -29,7 +29,7 @@
 #
 # It is an error if the existing location differs from `<dest-dir>`.
 #
-# If no `<dest-dir>` given the function uses the value of ``CMAKE_INSTALL_PREFIX`` set in ``CAKE_PKG_CMAKE_OPTIONS`` and create a directory
+# If no `<dest-dir>` given the function uses the value of ``CMAKE_INSTALL_PREFIX`` set in ``CAKE_PKG_CMAKE_ARGS`` and create a directory
 # under ${CMAKE_INSTALL_PREFIX}/var. The actual name of the directory will be derived from ``<repo-url>``.
 # See also `CakeLoadConfig.cmake`.
 #
@@ -654,7 +654,7 @@ if(NOT CAKE_PKG_INCLUDED)
         set(command_line
             -DCMAKE_BUILD_TYPE=${c}
             -DCAKE_ROOT=${CAKE_ROOT}
-            ${CAKE_PKG_CMAKE_OPTIONS}
+            ${CAKE_PKG_CMAKE_ARGS}
             ${unset_definitions}
             ${definitions}
             -DCAKE_PKG_LOAD_THE_SESSION_VARS=1
@@ -673,7 +673,7 @@ if(NOT CAKE_PKG_INCLUDED)
         endif()
 
         # call cmake build
-        set(command_line --build "${binary_dir}" --target install --config ${c} -- ${CAKE_PKG_NATIVE_TOOL_OPTIONS})
+        set(command_line --build "${binary_dir}" --target install --config ${c} -- ${CAKE_PKG_NATIVE_TOOL_ARGS})
         cake_list_to_command_line_like_string(s "${command_line}")
         cake_message(STATUS "cmake ${s}")
         execute_process(COMMAND ${CMAKE_COMMAND} ${command_line} RESULT_VARIABLE res_var)

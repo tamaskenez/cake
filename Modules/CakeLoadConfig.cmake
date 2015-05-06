@@ -12,7 +12,7 @@
 # CAKE_LOAD_CONFIG sets the Cake configuration variables from the shell environment or from an optional config file:
 #
 # If ``CAKE_CONFIG_FILE`` environment variable is set then that file will be included. The script usually contains
-#   simple CMake `set()` commands to set the configuration variables, like ``set(CAKE_CMAKE_OPTIONS -GXcode)``
+#   simple CMake `set()` commands to set the configuration variables, like ``set(CAKE_CMAKE_ARGS -GXcode)``
 #
 # If a configuration variables is already defined as a CMake variable it will not be overwritten.
 # The environment variables have the next higher precedence then the Cake config file.
@@ -20,20 +20,20 @@
 #
 # The Cake configuration variables (can be set in the environment or in the Cake configuration file):
 #
-# ``CAKE_CMAKE_OPTIONS``
+# ``CAKE_CMAKE_ARGS``
 #   Options passed to ``cmake`` by the ``cake`` command-line tool when performing CMake generate/configuration phase
 # ``CAKE_BINARY_DIR_PREFIX``
 #   The automatically generated CMAKE_BINARY_DIR will be created in this directory.
 #   Used by the ``cake`` command line tool for creating and finding the binary dir corresponding to the given source dir.
-# ``CAKE_CMAKE_NATIVE_TOOL_OPTIONS``
+# ``CAKE_CMAKE_NATIVE_TOOL_ARGS``
 #   These option will be passed to the ``cmake --build`` command by the ``cake`` command for CMake building phase
 # ``CAKE_PKG_CONFIGURATION_TYPES``
 #   Used by the ``cake pkg`` command: the packages will be installed for these configuration types (Debug, Relese, ...)
 #   Default: Release
-# ``CAKE_PKG_CMAKE_OPTIONS``
-#   Like CAKE_CMAKE_OPTIONS but used for installing packages
-# ``CAKE_PKG_CMAKE_NATIVE_TOOL_OPTIONS``
-#   Like CAKE_CMAKE_NATIVE_TOOL_OPTIONS but used for installing packages
+# ``CAKE_PKG_CMAKE_ARGS``
+#   Like CAKE_CMAKE_ARGS but used for installing packages
+# ``CAKE_PKG_CMAKE_NATIVE_TOOL_ARGS``
+#   Like CAKE_CMAKE_NATIVE_TOOL_ARGS but used for installing packages
 # ``CAKE_PKG_CLONE_DEPTH``
 #   For the ``cake_pkg(INSTALL|CLONE ...)`` commands this variable controls the depth parameter
 #   of the ``git clone --depth <d>`` command.
@@ -55,11 +55,11 @@ if(NOT CAKE_LOAD_CONFIG_INCLUDED)
 
   set(CAKE_ENV_VARS
     CAKE_BINARY_DIR_PREFIX
-    CAKE_CMAKE_OPTIONS
-    CAKE_CMAKE_NATIVE_TOOL_OPTIONS
+    CAKE_CMAKE_ARGS
+    CAKE_CMAKE_NATIVE_TOOL_ARGS
     CAKE_PKG_CONFIGURATION_TYPES
-    CAKE_PKG_CMAKE_OPTIONS
-    CAKE_PKG_CMAKE_NATIVE_TOOL_OPTIONS
+    CAKE_PKG_CMAKE_ARGS
+    CAKE_PKG_CMAKE_NATIVE_TOOL_ARGS
     CAKE_PKG_CLONE_DEPTH
     )
 
@@ -174,9 +174,9 @@ if(NOT CAKE_LOAD_CONFIG_INCLUDED)
   # run-once code
   cake_load_config()
 
-  # extract CMAKE_INSTALL_PREFIX from CAKE_PKG_CMAKE_OPTIONS
+  # extract CMAKE_INSTALL_PREFIX from CAKE_PKG_CMAKE_ARGS
   unset(CAKE_PKG_INSTALL_PREFIX)
-  _cake_extract_define_from_command_line("${CAKE_PKG_CMAKE_OPTIONS}" CMAKE_INSTALL_PREFIX CAKE_PKG_INSTALL_PREFIX)
+  _cake_extract_define_from_command_line("${CAKE_PKG_CMAKE_ARGS}" CMAKE_INSTALL_PREFIX CAKE_PKG_INSTALL_PREFIX)
 
   if(NOT CAKE_PKG_INSTALL_PREFIX)
     set(CAKE_PKG_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}") # try to use the default value
@@ -184,7 +184,7 @@ if(NOT CAKE_LOAD_CONFIG_INCLUDED)
 
   # need a valid CAKE_PKG_INSTALL_PREFIX except if in script mode
   if(CMAKE_HOME_DIRECTORY AND NOT CAKE_PKG_INSTALL_PREFIX)
-    message(FATAL_ERROR "[cake] Missing CMAKE_INSTALL_PREFIX: define it in CAKE_PKG_CMAKE_OPTIONS")
+    message(FATAL_ERROR "[cake] Missing CMAKE_INSTALL_PREFIX: define it in CAKE_PKG_CMAKE_ARGS")
   endif()
 
 endif()
