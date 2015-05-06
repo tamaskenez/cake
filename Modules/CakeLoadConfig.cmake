@@ -11,7 +11,7 @@
 #
 # CAKE_LOAD_CONFIG sets the Cake configuration variables from the shell environment or from an optional config file:
 #
-# If ``CAKE_CONFIG_FILE`` environment variable is set then this file will be included. The script usually contains
+# If ``CAKE_CONFIG_FILE`` environment variable is set then that file will be included. The script usually contains
 #   simple CMake `set()` commands to set the configuration variables, like ``set(CAKE_CMAKE_OPTIONS -GXcode)``
 #
 # If a configuration variables is already defined as a CMake variable it will not be overwritten.
@@ -34,6 +34,13 @@
 #   Like CAKE_CMAKE_OPTIONS but used for installing packages
 # ``CAKE_PKG_CMAKE_NATIVE_TOOL_OPTIONS``
 #   Like CAKE_CMAKE_NATIVE_TOOL_OPTIONS but used for installing packages
+# ``CAKE_PKG_CLONE_DEPTH``
+#   For the ``cake_pkg(INSTALL|CLONE ...)`` commands this variable controls the depth parameter
+#   of the ``git clone --depth <d>`` command.
+#   Set to zero to clone at unlimited depth. If undefined or set to ``""`` the default behaviour will be used, which is to
+#   - clone at unlimited depth when the DESTINATION parameter is set (for example, when `cake_add_subdirectory`
+#     calls ``cake_PKG(CLONE ...)``.
+#   - clone with ``--depth=1`` when the DESTINATION parameter is not given
 
 if(NOT CAKE_LOAD_CONFIG_INCLUDED)
   set(CAKE_LOAD_CONFIG_INCLUDED 1)
@@ -53,6 +60,7 @@ if(NOT CAKE_LOAD_CONFIG_INCLUDED)
     CAKE_PKG_CONFIGURATION_TYPES
     CAKE_PKG_CMAKE_OPTIONS
     CAKE_PKG_CMAKE_NATIVE_TOOL_OPTIONS
+    CAKE_PKG_CLONE_DEPTH
     )
 
   # run-once code after the definitions
@@ -99,11 +107,6 @@ if(NOT CAKE_LOAD_CONFIG_INCLUDED)
       _cake_load_config_file()
     endif()
 
-    # set default values
-    if("${CAKE_PKG_CONFIGURATION_TYPES}" STREQUAL "")
-      set(CAKE_PKG_CONFIGURATION_TYPES Release)
-    endif()
-
     if(0)
       foreach(i ${CAKE_ENV_VARS})
         if(NOT DEFINED ${i})
@@ -144,6 +147,29 @@ if(NOT CAKE_LOAD_CONFIG_INCLUDED)
     endforeach()
     set(${var_out} "${result}" PARENT_SCOPE)
   endfunction()
+
+  macro(_cake_get_pkg_configuration_types)
+    if(DEFINED CAKE_PKG_CONFIGURATION_TYPES AND CAKE_PKG_CONFIGURATION_TYPES)
+      set(ans "${CAKE_PKG_CONFIGURATION_TYPES}")
+    else()
+      set(ans Release) # default value
+    endif()
+  endmacro()
+
+  # mode must be EXTERN or SUBDIR
+  macro(_cake_get_clone_depth mode)
+    if("${CAKE_PKG_CLONE_DEPTH}" STREQUAL "")
+      if("${mode}" STREQUAL "EXTERN")
+        set(ans 1)
+      elseif("${mode}" STREQUAL "SUBDIR")
+        set(ans 0)
+      else()
+        message(FATAL_ERROR "[cake] Internal error in _cake_get_clone_depth, mode is ${mode}.")
+      endif()
+    else()
+      set(ans "${CAKE_PKG_CLONE_DEPTH}")
+    endif()
+  endmacro()
 
   # run-once code
   cake_load_config()

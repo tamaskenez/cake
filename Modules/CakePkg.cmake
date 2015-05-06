@@ -71,7 +71,6 @@
 # be passed to git clone:
 #
 # - ``branch=<branch>`` -> ``git clone ... --branch <branch>``
-# - ``depth=<depth>`` -> ``git clone ... --depth <depth>``
 #
 # Determining dependencies from ``cake-depends.cmake``:
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -146,13 +145,13 @@ if(NOT CAKE_PKG_INCLUDED)
 
 
   # strips URL scheme, .git extension, splits trailiing :commitish
-  # for an input url like http://user:psw@a.b.com/c/d/e.git?branch=release/2.3&-DWITH_SQLITE=1&-DBUILD_SHARED_LIBS=1&depth=1
+  # for an input url like http://user:psw@a.b.com/c/d/e.git?branch=release/2.3&-DWITH_SQLITE=1&-DBUILD_SHARED_LIBS=1
   # we need the following parts:
   # repo_url: http://user:psw@a.b.com/c/d/e.git
   #   this is used for git clone
   # repo_url_cid: a_b_com_c_d_e (scheme, user:psw@ and .git stripped, made c identifier)
   #   this identifies a repo and also the name of directory of the local copy
-  # options: "branch=release/2.3;depth=1" list of the query items that do not begin with -D
+  # options: "branch=release/2.3" list of the query items that do not begin with -D
   # definitions: "-DWITH_SQLITE=1;-DBUILD_SHARED_LIBS=1" list of the query items that begins with -D
   #   used for passing build parameters to the package, like autoconf's --with... and macports' variants
   function(cake_parse_pkg_url URL REPO_URL_OUT REPO_URL_CID_OUT OPTIONS_OUT DEFINITIONS_OUT)
@@ -398,12 +397,13 @@ if(NOT CAKE_PKG_INCLUDED)
       endif()
     endif()
 
+    cake_get_humanish_part_of_url("${repo_url}")
+    get_filename_component(f "${ans}" NAME)
+    string(RANDOM LENGTH 2 ALPHABET 0123456789 r)
+    set(shortcid "${f}_${r}")
+    
     if(NOT destination)
       # last dir of url + random
-      cake_get_humanish_part_of_url("${repo_url}")
-      get_filename_component(f "${ans}" NAME)
-      string(RANDOM LENGTH 2 ALPHABET 0123456789 r)
-      set(shortcid "${f}_${r}")
       set(resolved_destination ${CAKE_PKG_REPOS_DIR}/${shortcid})
     else()
       if(NOT IS_ABSOLUTE "${destination}")
@@ -427,12 +427,18 @@ if(NOT CAKE_PKG_INCLUDED)
     foreach(i ${options})
       if("${i}" MATCHES "^branch=(.+)$")
         list(APPEND command_line -b "${CMAKE_MATCH_1}")
-      elseif("${i}" MATCHES "^depth=(.+)$")
-        list(APPEND command_line --depth "${CMAKE_MATCH_1}")
-        set(depth_set 1)
       endif()
     endforeach()
     list(APPEND command_line --recursive)
+    if(destination)
+      _cake_get_clone_depth(SUBDIR)
+    else()
+      _cake_get_clone_depth(EXTERN)
+    endif()
+    set(clone_depth "${ans}")
+    if(NOT "${clone_depth}" EQUAL 0)
+      list(APPEND command_line --depth "${clone_depth}" --no-single-branch) # clone at depth but fetch all the branches
+    endif()
 
     # prepare command line for git clone
     list(APPEND command_line "${repo_url}" "${resolved_destination}")
@@ -443,6 +449,7 @@ if(NOT CAKE_PKG_INCLUDED)
       message(FATAL_ERROR "[cake_pkg] git clone failed")
     endif()
 
+    # find out the revision what we've just cloned
     execute_process(COMMAND ${GIT_EXECUTABLE} symbolic-ref -q --short HEAD
       WORKING_DIRECTORY ${resolved_destination}
       OUTPUT_VARIABLE o
@@ -609,15 +616,13 @@ if(NOT CAKE_PKG_INCLUDED)
     endif()
 
     # now configure and build the install target of this package with cmake
-
-    if(NOT CAKE_PKG_CONFIGURATION_TYPES)
-      message(FATAL_ERROR "[cake] CAKE_PKG_CONFIGURATION_TYPES is empty. It should be left undefined (then defaults to 'Release') or set to valid values.")
-    endif()
+    _cake_get_pkg_configuration_types()
+    set(configuration_types "${ans}")
 
     cake_repo_db_get_project_title("${pk}")
-    set(descriptive_name "${ans}")
+    set(project_title "${ans}")
 
-    foreach(c ${CAKE_PKG_CONFIGURATION_TYPES})
+    foreach(c ${configuration_types})
       # read pars of last build (install)
       set(last_build_pars_path ${CAKE_PKG_LAST_BUILD_PARS_DIR}/${shortcid}_${c})
       set(last_build_pars "")
@@ -628,7 +633,7 @@ if(NOT CAKE_PKG_INCLUDED)
       endif()
 
       if(NOT last_build_pars STREQUAL build_pars_now) # last install is non-existent or outdated
-        cake_message(STATUS "Building the install target (${c}) for package ${descriptive_name}")
+        cake_message(STATUS "Building the install target (${c}) for package ${project_title}")
 
         # remove pars from last build
         set(first_par 1)
