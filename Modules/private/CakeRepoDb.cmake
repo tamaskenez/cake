@@ -1,19 +1,19 @@
 if(NOT CAKE_REPO_DB_INCLUDED)
   set(CAKE_REPO_DB_INCLUDED 1)
 
-  # db.txt is a sequence of \t<primary-key><field>=<value> strings
+  # cake_pkg_repo_db.txt is a sequence of \t<primary-key><field>=<value> strings
   # where <primary-key> is a decimal positive integer (>0)
   # <field> is a c-identifier-like field name
   # <value> is an arbitrary text not containing \t
-  # db_next_pk.txt contains a single number, the next primary key
+  # cake_pkg_repo_db_next_pk.txt contains a single number, the next primary key
   # They are cached internally in cache-internal variables CAKE_REPO_DB and CAKE_REPO_DB_NEXT_PK
 
   macro(cake_repo_db_save_db)
-    file(WRITE "${CAKE_PKG_REPOS_DIR}/db.txt" "${CAKE_REPO_DB}")
+    file(WRITE "${CAKE_PKG_REPOS_DIR}/cake_pkg_repo_db.txt" "${CAKE_REPO_DB}")
   endmacro()
 
   macro(cake_repo_db_save_next_pk)
-    file(WRITE "${CAKE_PKG_REPOS_DIR}/db_next_pk.txt" "${CAKE_REPO_DB_NEXT_PK}")
+    file(WRITE "${CAKE_PKG_REPOS_DIR}/cake_pkg_repo_db_next_pk.txt" "${CAKE_REPO_DB_NEXT_PK}")
   endmacro()
 
   macro(cake_repo_db_save)
@@ -22,9 +22,9 @@ if(NOT CAKE_REPO_DB_INCLUDED)
   endmacro()
 
   macro(cake_repo_db_load)
-    if(EXISTS "${CAKE_PKG_REPOS_DIR}/db.txt" AND EXISTS "${CAKE_PKG_REPOS_DIR}/db_next_pk.txt")
-      file(READ "${CAKE_PKG_REPOS_DIR}/db.txt" CAKE_REPO_DB)
-      file(READ "${CAKE_PKG_REPOS_DIR}/db_next_pk.txt" CAKE_REPO_DB_NEXT_PK)
+    if(EXISTS "${CAKE_PKG_REPOS_DIR}/cake_pkg_repo_db.txt" AND EXISTS "${CAKE_PKG_REPOS_DIR}/cake_pkg_repo_db_next_pk.txt")
+      file(READ "${CAKE_PKG_REPOS_DIR}/cake_pkg_repo_db.txt" CAKE_REPO_DB)
+      file(READ "${CAKE_PKG_REPOS_DIR}/cake_pkg_repo_db_next_pk.txt" CAKE_REPO_DB_NEXT_PK)
       set(CAKE_REPO_DB "${CAKE_REPO_DB}" CACHE INTERNAL "" FORCE)
       set(CAKE_REPO_DB_NEXT_PK "${CAKE_REPO_DB_NEXT_PK}" CACHE INTERNAL "" FORCE)
     else()

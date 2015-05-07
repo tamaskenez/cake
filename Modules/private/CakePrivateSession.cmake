@@ -34,7 +34,7 @@ if(NOT CAKE_PRIVATE_SESSION_INCLUDED)
   # run-once code
 
   # this assumes CakeLoadConfig has been loaded
-  set(CAKE_PKG_SESSION_VARS_FILE "${CAKE_PKG_INSTALL_PREFIX}/var/cake_pkg_session_vars.cmake")
+  set(CAKE_PKG_SESSION_VARS_FILE "${CAKE_PKG_INSTALL_PREFIX}/tmp/cake_pkg_session_vars.cmake")
 
   cake_clear_session_vars()
   if(CAKE_PKG_LOAD_THE_SESSION_VARS)

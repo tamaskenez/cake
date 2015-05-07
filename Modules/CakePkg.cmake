@@ -30,7 +30,7 @@
 # It is an error if the existing location differs from `<dest-dir>`.
 #
 # If no `<dest-dir>` given the function uses the value of ``CMAKE_INSTALL_PREFIX`` set in ``CAKE_PKG_CMAKE_ARGS`` and create a directory
-# under ${CMAKE_INSTALL_PREFIX}/var. The actual name of the directory will be derived from ``<repo-url>``.
+# under ${CMAKE_INSTALL_PREFIX}/src. The actual name of the directory will be derived from ``<repo-url>``.
 # See also `CakeLoadConfig.cmake`.
 #
 # Usually you don't call `cake_pkg(CLONE ...)` with `DESTINATION` directly, instead you call `cake_add_subdirectory()`.
@@ -596,8 +596,8 @@ if(NOT CAKE_PKG_INCLUDED)
     set(cake_depends_cmake_file "${destination}/cake-depends.cmake")
     set(randomfile "")
     if(NOT EXISTS "${cake_depends_cmake_file}" AND DEFINED CAKE_DEPENDS_DB_${cid})
-      string(RANDOM randomfile)
-      set(randomfile "${CAKE_PKG_INSTALL_PREFIX}/var/cake_pkg_tmp/${randomfile}")
+      string(RANDOM LENGTH 10 randomfile)
+      set(randomfile "${CAKE_PKG_INSTALL_PREFIX}/tmp/cake_pkg_${randomfile}")
       file(WRITE "${randomfile}" "${CAKE_DEPENDS_DB_${cid}}")
       set(cake_depends_cmake_file "${randomfile}")
     endif()
@@ -624,7 +624,7 @@ if(NOT CAKE_PKG_INCLUDED)
 
     foreach(c ${configuration_types})
       # read pars of last build (install)
-      set(last_build_pars_path ${CAKE_PKG_LAST_BUILD_PARS_DIR}/${shortcid}_${c})
+      set(last_build_pars_path ${CAKE_PKG_BUILD_DIR}/${shortcid}_${c}/cake_pkg_last_build_pars.txt)
       set(last_build_pars "")
       if(EXISTS "${last_build_pars_path}")
         file(STRINGS "${last_build_pars_path}" last_build_pars)
@@ -948,9 +948,8 @@ if(NOT CAKE_PKG_INCLUDED)
 
   cake_load_pkg_db()
 
-  set(CAKE_PKG_REPOS_DIR ${CAKE_PKG_INSTALL_PREFIX}/var/cake_pkg_repos)
-  set(CAKE_PKG_BUILD_DIR ${CAKE_PKG_INSTALL_PREFIX}/var/cake_pkg_build)
-  set(CAKE_PKG_LAST_BUILD_PARS_DIR ${CAKE_PKG_INSTALL_PREFIX}/var/cake_pkg_last_build_pars)
+  set(CAKE_PKG_REPOS_DIR ${CAKE_PKG_INSTALL_PREFIX}/src)
+  set(CAKE_PKG_BUILD_DIR ${CAKE_PKG_INSTALL_PREFIX}/build)
 
   include(${CMAKE_CURRENT_LIST_DIR}/private/CakeRepoDb.cmake)
 
