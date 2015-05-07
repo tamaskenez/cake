@@ -76,7 +76,7 @@ cmake_minimum_required(VERSION 3.1)
 
 get_filename_component(CAKE_ROOT ${CMAKE_CURRENT_LIST_DIR}/.. ABSOLUTE)
 
-include(${CAKE_ROOT}/Modules/CakePrivateUtils.cmake)
+include(${CAKE_ROOT}/Modules/private/CakePrivateUtils.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/private.cmake)
 
 unset(opt_source_dir) # source dir specified on the command line

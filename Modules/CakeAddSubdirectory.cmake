@@ -34,7 +34,7 @@ if(NOT CAKE_ADD_SUBDIRECTORY_INCLUDED)
   endif()
   
   if(NOT CAKE_PRIVATE_UTILS_INCLUDED)
-    include(${CMAKE_CURRENT_LIST_DIR}/CakePrivateUtils.cmake)
+    include(${CMAKE_CURRENT_LIST_DIR}/private/CakePrivateUtils.cmake)
   endif()
 
   function(cake_add_subdirectory ARG_SOURCEDIR)

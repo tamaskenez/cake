@@ -13,7 +13,6 @@ if(NOT CAKE_INCLUDED)
   endif()
 
   set(CAKE_INCLUDED 1)
-  include(${CMAKE_CURRENT_LIST_DIR}/Modules/CakePrivateSession.cmake) # loads the config in turn and the session vars
+  include(${CMAKE_CURRENT_LIST_DIR}/Modules/private/CakePrivateSession.cmake) # loads the config in turn and the session vars
   include(${CMAKE_CURRENT_LIST_DIR}/Modules/CakeAddSubdirectory.cmake)
-  include(${CMAKE_CURRENT_LIST_DIR}/Modules/CakeFindPackage.cmake)
 endif()

@@ -118,7 +118,7 @@ if(NOT CAKE_PKG_INCLUDED)
   include(CMakeParseArguments)
   
   if(NOT CAKE_PRIVATE_UTILS_INCLUDED)
-    include(${CMAKE_CURRENT_LIST_DIR}/CakePrivateUtils.cmake)
+    include(${CMAKE_CURRENT_LIST_DIR}/private/CakePrivateUtils.cmake)
   endif()
 
   if(NOT CAKE_LOAD_CONFIG_INCLUDED)
@@ -952,6 +952,6 @@ if(NOT CAKE_PKG_INCLUDED)
   set(CAKE_PKG_BUILD_DIR ${CAKE_PKG_INSTALL_PREFIX}/var/cake_pkg_build)
   set(CAKE_PKG_LAST_BUILD_PARS_DIR ${CAKE_PKG_INSTALL_PREFIX}/var/cake_pkg_last_build_pars)
 
-  include(${CMAKE_CURRENT_LIST_DIR}/CakeRepoDb.cmake)
+  include(${CMAKE_CURRENT_LIST_DIR}/private/CakeRepoDb.cmake)
 
 endif()

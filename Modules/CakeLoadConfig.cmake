@@ -48,7 +48,7 @@ if(NOT CAKE_LOAD_CONFIG_INCLUDED)
   include(CMakePrintHelpers)
 
   if(NOT CAKE_PRIVATE_UTILS_INCLUDED)
-    include(${CMAKE_CURRENT_LIST_DIR}/CakePrivateUtils.cmake)
+    include(${CMAKE_CURRENT_LIST_DIR}/private/CakePrivateUtils.cmake)
   endif()
 
   unset(CAKE_LOAD_CONFIG_DONE)
