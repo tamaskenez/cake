@@ -1,2 +1,5 @@
-cake_depends_db_add(URL git://git.code.sf.net/p/libpng/code CODE "cake_pkg(INSTALL URL https://github.com/madler/zlib.git?depth=1)")
+set(CAKE_PKG_URL_OF_ZLIB https://github.com/madler/zlib.git)
+set(CAKE_PKG_URL_OF_PNG git://git.code.sf.net/p/libpng/code)
+cake_pkg_depends(NAME PNG CODE "cake_pkg(INSTALL NAME ZLIB)")
+
 

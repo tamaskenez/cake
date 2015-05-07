@@ -48,7 +48,7 @@
 # The INSTALL signature implies a CLONE step first so everything written for CLONE applies here.
 #
 # After the CLONE the command attemts to install the dependencies of the cloned repository:
-# - attempts to find and execute (`include`) the file ``cake-depends.cmake`` in the root of the repository
+# - attempts to find and execute (`include`) the file ``cake-pkg-depends.cmake`` in the root of the repository
 # - if the file cannot be found, attempts to look up the repository in the Cake package registry and
 #   execute the code found there
 #
@@ -58,6 +58,11 @@
 # The `<definitions>` is a list of -Dname=value strings (value is optional). The URL also may contain definitions
 # (see the next section). These definitions will be passed to the dependency script and also the the ``cmake``
 # configuration phase.
+#
+# The INSTALL phase saves the package's SHA1 commit-ids after successful builds. The next time the INSTALL
+# phase checks the saved SHA and will not launch the CMake build operation for an unchanged package.
+#
+# About the cake environment variables controlling these operations see `cake_load_config()`
 #
 # Format of the ``<repo-url>``
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -72,15 +77,15 @@
 #
 # - ``branch=<branch>`` -> ``git clone ... --branch <branch>``
 #
-# Determining dependencies from ``cake-depends.cmake``:
+# Determining dependencies from ``cake-pkg-depends.cmake``:
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
-# The root directory of the package may contain the file ``cake-depends.cmake``. This is a plain Cmake script
+# The root directory of the package may contain the file ``cake-pkg-depends.cmake``. This is a plain Cmake script
 # which usually contains a `cake_pkg(INSTALL ...)` commands for the dependencies of the package, for example::
 #
 #    cake_pkg(INSTALL https://github.com/madler/zlib.git)
 #
-# The -D options of the ``<repo-url>`` are also passed to the ``cake-depends.cmake`` script so it
+# The -D options of the ``<repo-url>`` are also passed to the ``cake-pkg-depends.cmake`` script so it
 # can install the dependencies accordingly::
 #
 #    if(WITH_SQLITE)
@@ -90,19 +95,8 @@
 # Extracting dependencies from Cake package database:
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
-# Sometimes you can't add a ``cake-depends.cmake`` file to a third-party library. In this
-# case you can add the dependency information to a text file in the Cake package database
-# which is simply the text files in in the Cake distribution's ``/db`` directory.
-# Any file name with the pattern ``cake-depends-db*`` is accepted. The files contains single lines of this format::
-#
-#    URL <url1> [DEPENDS <url2> [<url3> ...]]
-#
-# Which describes that the repo at url1 depends on url2, url3, etc...
-#
-# The INSTALL phase saves the package's SHA1 commit-ids after successful builds. The next time the INSTALL
-# phase checks the saved SHA and will not launch the CMake build operation for an unchanged package.
-#
-# About the cake environment variables controlling these operations see `cake_load_config()`
+# Sometimes you can't add a ``cake-pkg-depends.cmake`` file to a third-party library. In this
+# case you can add the dependency information by calling `cake_pkg_depends`, see CakePkgDepends.cmake.
 #
 
 include(CMakePrintHelpers)
@@ -125,69 +119,9 @@ if(NOT CAKE_PKG_INCLUDED)
     include(${CMAKE_CURRENT_LIST_DIR}/CakeLoadConfig.cmake)
   endif()
 
-  include(${CMAKE_CURRENT_LIST_DIR}/CakeDependsDbAdd.cmake)
+  include(${CMAKE_CURRENT_LIST_DIR}/CakePkgDepends.cmake)
 
   # there is run-once code after the function definitions
-
-  # creates urls like github.com/dir/a from https://user:psw@github.com:123/dir/a.git
-  # works for git@github.com:a/b, too
-  # returns ans
-  function(cake_get_humanish_part_of_url url)
-    string(REGEX REPLACE "^[a-zA-Z][a-zA-Z0-9+.-]*:" "" ans "${url}") # strip leading scheme information
-    string(REGEX REPLACE "^/+" "" ans "${ans}") # strip leading slashes
-    string(REGEX REPLACE "^[^@]*@" "" ans "${ans}") # strip leading userinfo
-    string(REGEX REPLACE ":[0-9]+/" "/" ans "${ans}") # remove port
-    string(REGEX REPLACE "/+$" "" ans "${ans}") # strip trailing slashes
-    string(REGEX REPLACE "\\.git$" "" ans "${ans}") # strip trailing .git
-    string(REGEX REPLACE "/+$" "" ans "${ans}") # strip trailing slashes
-    set(ans "${ans}" PARENT_SCOPE)
-  endfunction()
-
-
-  # strips URL scheme, .git extension, splits trailiing :commitish
-  # for an input url like http://user:psw@a.b.com/c/d/e.git?branch=release/2.3&-DWITH_SQLITE=1&-DBUILD_SHARED_LIBS=1
-  # we need the following parts:
-  # repo_url: http://user:psw@a.b.com/c/d/e.git
-  #   this is used for git clone
-  # repo_url_cid: a_b_com_c_d_e (scheme, user:psw@ and .git stripped, made c identifier)
-  #   this identifies a repo and also the name of directory of the local copy
-  # options: "branch=release/2.3" list of the query items that do not begin with -D
-  # definitions: "-DWITH_SQLITE=1;-DBUILD_SHARED_LIBS=1" list of the query items that begins with -D
-  #   used for passing build parameters to the package, like autoconf's --with... and macports' variants
-  function(cake_parse_pkg_url URL REPO_URL_OUT REPO_URL_CID_OUT OPTIONS_OUT DEFINITIONS_OUT)
-
-    string(REGEX MATCH "^([^?]+)\\??(.*)$" _ "${URL}")
-    set(repo_url "${CMAKE_MATCH_1}")
-    set(query "${CMAKE_MATCH_2}")
-
-    string(REPLACE & \; query "${query}")
-
-    cake_get_humanish_part_of_url("${repo_url}")
-    string(MAKE_C_IDENTIFIER "${ans}" repo_url_cid)
-
-    set(options "")
-    set(definitions "")
-    foreach(i ${query})
-      if("${i}" MATCHES "^([^=]+)=(.*)$")
-        if("${CMAKE_MATCH_1}" MATCHES "^-D?") # -D and at least one character
-          list(APPEND definitions "${i}")
-        else()
-          list(APPEND options "${i}")
-        endif()
-      else()
-        message(FATAL_ERROR "[cake] Invalid item (${i}) in URL query string, URL: ${URL}")
-      endif()
-    endforeach()
-
-    set(${REPO_URL_OUT} "${repo_url}" PARENT_SCOPE)
-    set(${REPO_URL_CID_OUT} "${repo_url_cid}" PARENT_SCOPE)
-    set(${OPTIONS_OUT} "${options}" PARENT_SCOPE)
-    if(definitions)
-      list(SORT definitions) # to provide canonical order
-    endif()
-    set(${DEFINITIONS_OUT} "${definitions}" PARENT_SCOPE)
-  endfunction()
-
   macro(_cake_apply_definitions definitions)
     foreach(i ${definitions})
       if(i MATCHES "^-D([^=]+)=(.*)$")
@@ -315,11 +249,12 @@ if(NOT CAKE_PKG_INCLUDED)
       message(FATAL_ERROR "[cake_pkg]: Internal error, neither pkg_url nor name is specified in _cake_pkg_clone.")
     endif()
 
-    if(name AND CAKE_PKG_NAME_DB_${name})
-      cmake_parse_arguments(ARG "" "URL" "" ${CAKE_PKG_NAME_DB_${name}})
-      if(ARG_URL)
-        set(pkg_url "${ARG_URL}")
-      endif()
+    if(name AND CAKE_PKG_URL_OF_${name})
+      #cmake_parse_arguments(ARG "" "URL" "" ${CAKE_PKG_NAME_DB_${name}})
+      #if(ARG_URL)
+      #  set(pkg_url "${ARG_URL}")
+      #endif()
+      set(pkg_url "${CAKE_PKG_URL_OF_${name}}")
     endif()
 
     if(pkg_url)
@@ -550,6 +485,42 @@ if(NOT CAKE_PKG_INCLUDED)
     endif()
   endfunction()
 
+  # includes the file 'cake_pkg_depends_file'
+  # if that doesn't exist, looks up CAKE_PKG_DEPENDS_* variables and includes those
+  # also applies the variables in 'definitions'
+  macro(_cake_include_cake_pkg_depends cake_pkg_depends_file cid name definitions)
+    set(randomfile "")
+    if(NOT EXISTS "${cake_pkg_depends_file}")
+      set(scriptvarname "")
+      if(DEFINED CAKE_PKG_DEPENDS_URL_${cid})
+        set(scriptvarname "CAKE_PKG_DEPENDS_URL_${cid}")
+      elseif(NOT "${name}" STREQUAL "" AND DEFINED CAKE_PKG_DEPENDS_URL_${name})
+        set(scriptvarname "CAKE_PKG_DEPENDS_URL_${name}")
+      else()
+        set(scriptvarname "")
+      endif()
+      if(scriptvarname)
+        string(RANDOM LENGTH 10 randomfile)
+        set(randomfile "${CAKE_PKG_INSTALL_PREFIX}/tmp/cake_pkg_${randomfile}")
+        file(WRITE "${randomfile}" "${${scriptvarname}}")
+        set(cake_pkg_depends_file "${randomfile}")
+      endif()
+    endif()
+
+    if(EXISTS "${cake_pkg_depends_file}")
+      # execute either the cake-pkg-depends.script
+      # or the script defined in the CAKE_PKG_DEPENDS_* var
+      # The script usually contains cake_pkg(INSTALL ...) calls to
+      # fetch and install dependencies
+      _cake_apply_definitions("${definitions}")
+      include("${cake_pkg_depends_file}")
+    endif()
+
+    if(randomfile)
+      file(REMOVE "${randomfile}")
+    endif()
+  endmacro()
+
   # pk: primary key of entry in repo_db
   function(_cake_pkg_install pk definitions)
     cake_repo_db_get_field_by_pk(destination "${pk}")
@@ -590,30 +561,15 @@ if(NOT CAKE_PKG_INCLUDED)
     cake_set_session_var(CAKE_PKG_${cid}_TRAVERSED_BY_PKG_INSTALL_NOW 1)
     cake_set_session_var(CAKE_PKG_${cid}_LAST_BUILD_PARS "${build_pars_now}")
 
-    # find dependencies:
-    # - try to run the repo's cake-depends.cmake
-    # - if no cake-depends.cmake consult the cake pkg db and run that script if found
-    set(cake_depends_cmake_file "${destination}/cake-depends.cmake")
-    set(randomfile "")
-    if(NOT EXISTS "${cake_depends_cmake_file}" AND DEFINED CAKE_DEPENDS_DB_${cid})
-      string(RANDOM LENGTH 10 randomfile)
-      set(randomfile "${CAKE_PKG_INSTALL_PREFIX}/tmp/cake_pkg_${randomfile}")
-      file(WRITE "${randomfile}" "${CAKE_DEPENDS_DB_${cid}}")
-      set(cake_depends_cmake_file "${randomfile}")
-    endif()
+    # execute the repo's cake-pkg-depends.cmake script, if exists
+    # otherwise try to execute the dependency script in CAKE_PKG_DEPENDS_<name> or CAKE_PKG_DEPENDS_<urlcid>
 
-    if(EXISTS "${cake_depends_cmake_file}")
-      # _call_cake_depends executes either the cake-depends.script or
-      # or the script defined in the cake-depends-db*.cmake
-      # The script usually contains cake_pkg(INSTALL ...) calls which
-      # fetch and install dependencies
-      _cake_apply_definitions("${definitions}")
-      include("${cake_depends_cmake_file}")
-    endif()
+    cake_repo_db_get_field_by_pk(name "${pk}")
+    set(name "${ans}")
 
-    if(randomfile)
-      file(REMOVE "${randomfile}")
-    endif()
+    _cake_include_cake_pkg_depends(
+      "${destination}/cake-pkg-depends.cmake"
+      "${cid}" "${name}" "${definitions}")
 
     # now configure and build the install target of this package with cmake
     _cake_get_pkg_configuration_types()
@@ -718,7 +674,7 @@ if(NOT CAKE_PKG_INCLUDED)
 
     cmake_parse_arguments(ARG
       "${option_commands}"
-      "URL;DESTINATION;NAME;GROUP"
+      "URL;DESTINATION;NAME;GROUP;PK_OUT"
       "${mv_commands};IF;DEFINITIONS;GROUPS"
       ${ARGV})
 
@@ -772,6 +728,9 @@ if(NOT CAKE_PKG_INCLUDED)
         list(SORT defs)
         list(REMOVE_DUPLICATES defs)
         _cake_pkg_install("${pk}" "${defs}")
+      endif()
+      if(ARG_PK_OUT)
+        set(${ARG_PK_OUT} "${pk}" PARENT_SCOPE)
       endif()
     elseif(ARG_STATUS OR ARG_DIFFLOG OR ARG_COMMAND OR ARG_CMDC OR ARG_SHC OR ARG_LIST)
       if(ARG_NAME)
@@ -931,13 +890,6 @@ if(NOT CAKE_PKG_INCLUDED)
     endif()
   endfunction()
 
-  macro(cake_load_pkg_db)
-    FILE(GLOB _cake_db_files ${CAKE_ROOT}/cake-depends-db*.cmake)
-    foreach(i ${_cake_db_files})
-      include("${i}")
-    endforeach()
-  endmacro()
-
 # ---- run-once code ----
 
   find_package(Git REQUIRED QUIET)
@@ -945,8 +897,6 @@ if(NOT CAKE_PKG_INCLUDED)
   if(CAKE_PKG_UPDATE_NOW)
     cake_set_session_var(CAKE_PKG_UPDATE_NOW 1)
   endif()
-
-  cake_load_pkg_db()
 
   set(CAKE_PKG_REPOS_DIR ${CAKE_PKG_INSTALL_PREFIX}/src)
   set(CAKE_PKG_BUILD_DIR ${CAKE_PKG_INSTALL_PREFIX}/build)

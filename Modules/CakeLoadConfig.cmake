@@ -1,24 +1,68 @@
 #.rst:
 # CakeLoadConfig
-# -----------
+# --------------
 #
 # Loads the Cake configuration variables from the shell environment or configuration file. You don't need
-# call this macro directly. This help is provided to document the Cake configuration variables.
+# call this macro directly, it's called automatically whenever it's needed.
+# This file is provided here to document the Cake configuration variables and also the usage of the
+# `CAKE_PKG_URL_OF*` variables and `cake_pkg_depends()` which describe additional (optional) information
+# about the location of the packages and their dependencies.
 #
 # ::
 #
 #   CAKE_LOAD_CONFIG()
 #
-# CAKE_LOAD_CONFIG sets the Cake configuration variables from the shell environment or from an optional config file:
+# This command (called automatically) loads the configuration variables from shell environment variables. See below the list of variables.
+# 
+# If the ``CAKE_CONFIG_FILE`` environment variable is set then that file will also be included. The script usually contains
+# simple CMake `set()` commands to set the configuration variables, like ``set(CAKE_CMAKE_ARGS -GXcode)``
 #
-# If ``CAKE_CONFIG_FILE`` environment variable is set then that file will be included. The script usually contains
-#   simple CMake `set()` commands to set the configuration variables, like ``set(CAKE_CMAKE_ARGS -GXcode)``
+# You can also set the configuration variables in your CMakeLists.txt as plain CMake variables. Note that
+# variables set this way will not be available in child `cmake` processes launched by ``cake_pkg(INSTALL ...)`` while
+# variables from the environment and set in the config file will be.
 #
-# If a configuration variables is already defined as a CMake variable it will not be overwritten.
-# The environment variables have the next higher precedence then the Cake config file.
+# The CAKE_LOAD_CONFIG macro also ensures the correct priority between variables set in the environment, set in the config file and
+# set in in the CMakeLists.txt:
 #
+# - plain CMake variables have the highest priority
+# - variables set in the environment have the next highest priority
+# - variables set in the config file have the lowest priority
 #
-# The Cake configuration variables (can be set in the environment or in the Cake configuration file):
+# In the config file, besides the Cake configuration variables you can also
+#
+# - define URLs for package names by setting ``CAKE_PKG_URL_OF_<name>`` variables:
+# - define scripts for packages which install the dependencies of the package (see `CakePkgDepends.cmake`).
+#
+# You can add the calls directly to your Cake config file, or (better) create separate files which you
+# include in the config file.
+#
+# Example ``CAKE_PKG_URL_OF_<name>`` commands:
+# Instead of installing zlib and png with
+#
+#    cake_pkg(INSTALL URL https://github.com/madler/zlib.git)
+#    cake_pkg(INSTALL URL git://git.code.sf.net/p/libpng/code)
+#
+# You can create a file which contains the URL of all the packages you need. The URLs
+# must be assigned to variables named according to this pattern: ``CAKE_PKG_URL_OF_<name>``
+# where <name> is the find-package name (identical case, not upper-case!)
+#
+#    set(CAKE_PKG_URL_OF_ZLIB git://git.code.sf.net/p/libpng/code)
+#    set(CAKE_PKG_URL_OF_PNG https://github.com/madler/zlib.git)
+#    set(CAKE_PKG_URL_OF_Boost ...) # must be the same case
+#
+# You can include this file in the Cake config file and it will be effective in all
+# ``cmake`` processes launched during the configuration of your project (``cake_pkg(INSTALL )``
+# launches child ``cmake`` processes.)
+#
+# After setting the variables above you can simply write:
+#
+#    cake_pkg(INSTALL NAME ZLIB)
+#    cake_pkg(INSTALL NAME PNG)
+#
+# The Cake configuration variables
+# ================================
+#
+# They can be set in the environment or in the Cake configuration file:
 #
 # ``CAKE_CMAKE_ARGS``
 #   Options passed to ``cmake`` by the ``cake`` command-line tool when performing CMake generate/configuration phase
@@ -51,9 +95,13 @@ if(NOT CAKE_LOAD_CONFIG_INCLUDED)
     include(${CMAKE_CURRENT_LIST_DIR}/private/CakePrivateUtils.cmake)
   endif()
 
+  if(NOT CAKE_PKG_DEPENDS_INCLUDED)
+    include(${CMAKE_CURRENT_LIST_DIR}/CakePkgDepends.cmake)
+  endif()
+
   unset(CAKE_LOAD_CONFIG_DONE)
 
-  set(CAKE_ENV_VARS
+  set(CAKE_CONFIG_VARS
     CAKE_BINARY_DIR_PREFIX
     CAKE_CMAKE_ARGS
     CAKE_CMAKE_NATIVE_TOOL_ARGS
@@ -65,50 +113,64 @@ if(NOT CAKE_LOAD_CONFIG_INCLUDED)
 
   # run-once code after the definitions
 
-  function(_cake_load_config_file)
-    set(l "") # contains the list of vars defined now
-    foreach(v ${CAKE_ENV_VARS})
-      if(DEFINED ${v})
-        list(APPEND l ${v})
+  # - save the config vars defined currently
+  # - include the config file
+  # - restore the saved vars
+  # That way the currently set config vars will not be overwritten
+  macro(_cake_stash_config_vars)
+    set(CAKE_STASHED_CONFIG_VARS "") # contains the list of vars defined now
+    foreach(_v ${CAKE_CONFIG_VARS})
+      if(DEFINED ${_v})
+        list(APPEND CAKE_STASHED_CONFIG_VARS ${_v})
       endif()
     endforeach()
-    include("$ENV{CAKE_CONFIG_FILE}")
-    foreach(v ${CAKE_ENV_VARS})
-      list(FIND l ${v} r)
-      if(r EQUAL -1 AND DEFINED ${v}) # was not defined but it is now
-        set(${v} "${${v}}" PARENT_SCOPE)
-      endif()
+
+    # save the variables
+    foreach(_v ${_l})
+      set(CAKE_STASHED_CONFIG_VAR_${_v} "${${_v}}")
     endforeach()
-  endfunction()
+  endmacro()
+
+  macro(_cake_restore_stashed_config_vars)
+    # restore what was stashed
+    foreach(_v ${CAKE_STASHED_CONFIG_VARS})
+      set(${_v} "${CAKE_STASHED_CONFIG_VAR_${_v}}")
+      unset(CAKE_STASHED_CONFIG_VAR_${_v})
+    endforeach()
+endmacro()
 
   macro(cake_load_config)
 
     set(CAKE_LOAD_CONFIG_DONE 0)
 
-    if(NOT WIN32 OR DEFINED ENV{MSYSTEM})
-      set(_cake_s UNIX)
-    else()
-      set(_cake_s WINDOWS)
-    endif()
+    include(${CAKE_ROOT}/cake-depends-db.cmake)
 
-    # load from env var which is not defined here
-    foreach(_cake_v ${CAKE_ENV_VARS} )
-      if(NOT DEFINED ${_cake_v} AND DEFINED ENV{${_cake_v}})
-        separate_arguments(${_cake_v} ${_cake_s}_COMMAND "$ENV{${_cake_v}}")
-      endif()
-    endforeach()
-
+    _cake_stash_config_vars()
 
     if(NOT "$ENV{CAKE_CONFIG_FILE}" STREQUAL "")
       if(NOT IS_ABSOLUTE "$ENV{CAKE_CONFIG_FILE}")
         message(FATAL_ERROR "[cake] CAKE_CONFIG_FILE ($ENV{CAKE_CONFIG_FILE}) must be an absolute path")
       endif()
       cake_message(STATUS "Loading Cake configuration from $ENV{CAKE_CONFIG_FILE}")
-      _cake_load_config_file()
+      include("$ENV{CAKE_CONFIG_FILE}")
     endif()
 
+    # load from env var
+    if(NOT WIN32 OR DEFINED ENV{MSYSTEM})
+      set(_cake_system UNIX)
+    else()
+      set(_cake_system WINDOWS)
+    endif()
+    foreach(_v ${CAKE_CONFIG_VARS} )
+      if(DEFINED ENV{${_v}})
+        separate_arguments(${_v} ${_cake_system}_COMMAND "$ENV{${_v}}")
+      endif()
+    endforeach()
+
+    _cake_restore_stashed_config_vars()
+
     if(0)
-      foreach(i ${CAKE_ENV_VARS})
+      foreach(i ${CAKE_CONFIG_VARS})
         if(NOT DEFINED ${i})
           message(STATUS "${i} is not defined")
         elseif("${i}" STREQUAL "")

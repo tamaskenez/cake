@@ -77,55 +77,26 @@ if(NOT CAKE_ADD_SUBDIRECTORY_INCLUDED)
       list(APPEND opts GROUP "${ARG_GROUP}")
     endif()
 
-    cake_pkg(CLONE ${opts} DESTINATION "${ARG_SOURCEDIR_ABS}")
-
-    # retrieve the cid and definitions of this package, either by NAME or URL
-    set(pk "")
-    if(ARG_NAME)
-      cake_repo_db_get_pk_by_field(name "${ARG_NAME}")
-      set(pk "${ans}")
-    endif()
-    if(NOT pk)
-      cake_parse_pkg_url(${ARG_URL} _ repo_cid _ _)
-      cake_repo_db_get_pk_by_field(cid "${repo_cid}")
-      set(pk "${ans}")
-    endif()
+    cake_pkg(CLONE ${opts} DESTINATION "${ARG_SOURCEDIR_ABS}" PK_OUT pk)
 
     if(NOT pk)
       message(FATAL_ERROR "[cake_add_subdirectory] Internal error: package just cloned not found in repo_db.")
     endif()
 
-    cake_repo_db_get_field_by_pk(repo_cid "${pk}")
-    set(repo_cid "${ans}")
+    cake_repo_db_get_field_by_pk(cid "${pk}")
+    set(cid "${ans}")
+    cake_repo_db_get_field_by_pk(name "${pk}")
+    set(name "${ans}")
     cake_repo_db_get_field_by_pk(definitions "${pk}")
     set(definitions "${ans}")
 
-    cake_set_session_var(CAKE_PKG_${repo_cid}_ADDED_AS_SUBDIRECTORY 1)
+    cake_set_session_var(CAKE_PKG_${cid}_ADDED_AS_SUBDIRECTORY 1)
 
-    # execute the repo's cake-depends.cmake script, if exists
-    # otherwise try to execute the hardcoded dependency script from cake-depends-db*.cmake
-
-    set(cake_depends_file "${ARG_SOURCEDIR_ABS}/cake-depends.cmake")
-    set(random_file "")
-    if(NOT EXISTS "${cake_depends_file}" AND DEFINED CAKE_DEPENDS_DB_${repo_cid})
-      string(RANDOM LENGTH 10 random_file)
-      set(random_file "${CAKE_PKG_INSTALL_PREFIX}/tmp/cake_pkg_${random_file}")
-      file(WRITE "${random_file}" "${CAKE_DEPENDS_DB_${repo_cid}}")
-      set(cake_depends_file "${random_file}")
-    endif()
-
-    if(EXISTS "${cake_depends_file}")
-      # execute either the cake-depends.script
-      # or the script defined in the cake-depends-db*.cmake
-      # The script usually contains cake_pkg(INSTALL ...) calls to
-      # fetch and install dependencies
-      _cake_apply_definitions("${definitions}")
-      include("${cake_depends_cmake_file}")
-    endif()
-
-    if(random_file)
-      file(REMOVE "${random_file}")
-    endif()
+    # execute the repo's cake-pkg-depends.cmake script, if exists
+    # otherwise try to execute the dependency script in CAKE_PKG_DEPENDS_<name> or CAKE_PKG_DEPENDS_<cid>
+    _cake_include_cake_pkg_depends(
+      "${ARG_SOURCEDIR_ABS}/cake-pkg-depends.cmake"
+      "${cid}" "${name}" "${definitions}")
 
     add_subdirectory(${add_subdir_args})
 
