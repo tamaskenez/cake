@@ -488,14 +488,15 @@ if(NOT CAKE_PKG_INCLUDED)
   # includes the file 'cake_pkg_depends_file'
   # if that doesn't exist, looks up CAKE_PKG_DEPENDS_* variables and includes those
   # also applies the variables in 'definitions'
-  macro(_cake_include_cake_pkg_depends cake_pkg_depends_file cid name definitions)
+  macro(_cake_include_cake_pkg_depends cake_pkg_depends_file_arg cid name definitions)
+    set(_cake_pkg_depends_file "${cake_pkg_depends_file_arg}")
     set(randomfile "")
-    if(NOT EXISTS "${cake_pkg_depends_file}")
+    if(NOT EXISTS "${_cake_pkg_depends_file}")
       set(scriptvarname "")
       if(DEFINED CAKE_PKG_DEPENDS_URL_${cid})
         set(scriptvarname "CAKE_PKG_DEPENDS_URL_${cid}")
-      elseif(NOT "${name}" STREQUAL "" AND DEFINED CAKE_PKG_DEPENDS_URL_${name})
-        set(scriptvarname "CAKE_PKG_DEPENDS_URL_${name}")
+      elseif(NOT "${name}" STREQUAL "" AND DEFINED CAKE_PKG_DEPENDS_NAME_${name})
+        set(scriptvarname "CAKE_PKG_DEPENDS_NAME_${name}")
       else()
         set(scriptvarname "")
       endif()
@@ -503,17 +504,17 @@ if(NOT CAKE_PKG_INCLUDED)
         string(RANDOM LENGTH 10 randomfile)
         set(randomfile "${CAKE_PKG_INSTALL_PREFIX}/tmp/cake_pkg_${randomfile}")
         file(WRITE "${randomfile}" "${${scriptvarname}}")
-        set(cake_pkg_depends_file "${randomfile}")
+        set(_cake_pkg_depends_file "${randomfile}")
       endif()
     endif()
-
-    if(EXISTS "${cake_pkg_depends_file}")
+  
+    if(EXISTS "${_cake_pkg_depends_file}")
       # execute either the cake-pkg-depends.script
       # or the script defined in the CAKE_PKG_DEPENDS_* var
       # The script usually contains cake_pkg(INSTALL ...) calls to
       # fetch and install dependencies
       _cake_apply_definitions("${definitions}")
-      include("${cake_pkg_depends_file}")
+      include("${_cake_pkg_depends_file}")
     endif()
 
     if(randomfile)
@@ -710,7 +711,21 @@ if(NOT CAKE_PKG_INCLUDED)
       message(FATAL_ERROR "[cake_pkg] Either URL or NAME (or both) must be specified.")
     endif()
 
+    if(ARG_PK_OUT)
+      set(${ARG_PK_OUT} "" PARENT_SCOPE)
+    endif()
+
     if(ARG_CLONE OR ARG_INSTALL)
+      # something like this should be considered:
+      # skip entire cake_pkg(INSTALL/CLONE) if find_package already works
+      # not sure how to do it not to make any suprises
+      #if(ARG_NAME)
+      #  find_package(${ARG_NAME} QUIET)
+      #  string(TOUPPER "${ARG_NAME}" u)
+      #  if(${ARG_NAME}_FOUND OR ${u}_FOUND)
+      #    return()
+      #  endif()
+      #endif()
       if(ARG_URL)
         cake_parse_pkg_url("${ARG_URL}" repo_url repo_cid repo_options repo_definitions)
       else()
