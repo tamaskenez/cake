@@ -143,8 +143,6 @@ endmacro()
 
     set(CAKE_LOAD_CONFIG_DONE 0)
 
-    include(${CAKE_ROOT}/cake-depends-db.cmake)
-
     _cake_stash_config_vars()
 
     if(NOT "$ENV{CAKE_CONFIG_FILE}" STREQUAL "")
