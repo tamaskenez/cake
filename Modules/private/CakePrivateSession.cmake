@@ -6,7 +6,7 @@ if(NOT CAKE_PRIVATE_SESSION_INCLUDED)
   endif()
 
   if(NOT CAKE_LOAD_CONFIG_INCLUDED)
-    include(${CMAKE_CURRENT_LIST_DIR}/CakeLoadConfig.cmake)
+    include(${CMAKE_CURRENT_LIST_DIR}/../CakeLoadConfig.cmake)
   endif()
 
   # there is run-once code after the definitions
