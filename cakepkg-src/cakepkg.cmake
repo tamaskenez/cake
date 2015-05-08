@@ -43,7 +43,8 @@ endif()
 
 unset(CAKE_PKG_ARGS)
 foreach(i RANGE ${first_arg_idx} ${last_arg_idx})
-  list(APPEND CAKE_PKG_ARGS ${CMAKE_ARGV${i}})
+	string(REPLACE ";" "\;" j "${CMAKE_ARGV${i}}")
+  list(APPEND CAKE_PKG_ARGS "${j}")
 endforeach()
 
-cake_pkg(${CAKE_PKG_ARGS})
+cake_pkg("${CAKE_PKG_ARGS}")

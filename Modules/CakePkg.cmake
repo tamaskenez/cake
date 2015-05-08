@@ -121,6 +121,13 @@ if(NOT CAKE_PKG_INCLUDED)
 
   include(${CMAKE_CURRENT_LIST_DIR}/CakePkgDepends.cmake)
 
+  macro(cake_list_sort_unique_keep_nested_lists listname)
+    string(REPLACE "\;" "\t" ${listname} "${${listname}}")
+    list(SORT ${listname})
+    list(REMOVE_DUPLICATES ${listname})
+    string(REPLACE "\t" "\;" ${listname} "${${listname}}")
+  endmacro()
+
   # there is run-once code after the function definitions
   macro(_cake_apply_definitions definitions)
     foreach(i ${definitions})
@@ -539,8 +546,15 @@ if(NOT CAKE_PKG_INCLUDED)
     endif()
 
     _cake_execute_git_command_in_repo("log;-1;--pretty=format:%H" "${destination}" repo_sha)
-    set(build_pars_now "COMMIT=${repo_sha}")
-    list(APPEND build_pars_now ${definitions})
+    set(build_pars_now "")
+    foreach(c ${definitions} ${CAKE_PKG_CMAKE_ARGS})
+      if(c MATCHES "^-D[^=]+=.*$")
+        string(REPLACE ";" "\;" c "${c}")
+        list(APPEND build_pars_now "${c}")
+      endif()
+    endforeach()
+    cake_list_sort_unique_keep_nested_lists(SORT build_pars_now) # canonical ordering
+    set(build_pars_now "COMMIT=${repo_sha}" "${build_pars_now}")
 
     # if we've already installed this in this session just make sure the
     # current build settings are compatible with the first time's build settings
@@ -584,7 +598,7 @@ if(NOT CAKE_PKG_INCLUDED)
       set(last_build_pars_path ${CAKE_PKG_BUILD_DIR}/${shortcid}_${c}/cake_pkg_last_build_pars.txt)
       set(last_build_pars "")
       if(EXISTS "${last_build_pars_path}")
-        file(STRINGS "${last_build_pars_path}" last_build_pars)
+        file(STRINGS "${last_build_pars_path}" last_build_pars) # reads semicolons as backslash+semicolon, that's good
       else()
         set(last_build_pars "COMMIT=")
       endif()
@@ -593,15 +607,22 @@ if(NOT CAKE_PKG_INCLUDED)
         cake_message(STATUS "Building the install target (${c}) for package ${project_title}")
 
         # remove pars from last build
-        set(first_par 1)
         set(unset_definitions "")
         foreach(i ${last_build_pars})
-          if(first_par)
-            set(first_par 0) # first par is the SHA1 commit, skip it
-          else()
-            string(REGEX MATCH "^-D([^=]+)=.*$" _ "${i}")
-            if(CMAKE_MATCH_1)
-              list(APPEND unset_definitions "-U${CMAKE_MATCH_1}")
+          if(i MATCHES "^-D([^=]+)=.*$")
+            set(varname "${CMAKE_MATCH_1}")
+            # check if this variable is not set
+            set(found 0)
+            foreach(j ${build_pars_now})
+              if(j MATCHES "^-D([^=]+)=.*$")
+                if(CMAKE_MATCH_1 STREQUAL varname)
+                  set(found 1)
+                  break()
+                endif()
+              endif()
+            endforeach()
+            if(NOT found)
+              list(APPEND unset_definitions "-U${varname}")
             endif()
           endif()
         endforeach()
@@ -611,9 +632,9 @@ if(NOT CAKE_PKG_INCLUDED)
         set(command_line
             -DCMAKE_BUILD_TYPE=${c}
             -DCAKE_ROOT=${CAKE_ROOT}
-            ${CAKE_PKG_CMAKE_ARGS}
-            ${unset_definitions}
-            ${definitions}
+            "${CAKE_PKG_CMAKE_ARGS}"
+            "${unset_definitions}"
+            "${definitions}"
             -DCAKE_PKG_LOAD_THE_SESSION_VARS=1
             "${destination}"
         )
@@ -667,17 +688,27 @@ if(NOT CAKE_PKG_INCLUDED)
 # REMOVE single
 # - REMOVE NAME|(ALL^(GROUPS|IF))
 # - LIST NAME|(ALL^(GROUPS|IF))
+
   function(cake_pkg)
 
     set(option_commands CLONE INSTALL STATUS DIFFLOG REMOVE LIST)
     set(mv_commands COMMAND CMDC SHC)
     set(all_commands ${option_commands} ${mv_commands})
 
+    set(sv_args URL DESTINATION NAME GROUP PK_OUT)
+    set(mv_args ${mv_commands} IF DEFINITIONS GROUPS)
+
+    string(REPLACE "\;" "\t" argv "${ARGV}") # needed to keep nested lists
     cmake_parse_arguments(ARG
       "${option_commands}"
-      "URL;DESTINATION;NAME;GROUP;PK_OUT"
-      "${mv_commands};IF;DEFINITIONS;GROUPS"
-      ${ARGV})
+      "${sv_args}"
+      "${mv_args}"
+      "${argv}")
+
+    # restore tabs to escpaped ;
+    foreach(i URL ${sv_args} ${mv_args})
+      string(REPLACE "\t" "\;" ARG_${i} "${ARG_${i}}")
+    endforeach()
 
     set(count 0)
     foreach(c ${all_commands})
@@ -737,11 +768,7 @@ if(NOT CAKE_PKG_INCLUDED)
       _cake_pkg_clone("${ARG_URL}" "${ARG_DESTINATION}" "${group}" "${ARG_NAME}")
       set(pk "${ans}")
       if(ARG_INSTALL)
-        set(defs "")
-        list(APPEND defs ${repo_definitions})
-        list(APPEND defs ${ARG_DEFINITIONS})
-        list(SORT defs)
-        list(REMOVE_DUPLICATES defs)
+        set(defs "${repo_definitions}" "${ARG_DEFINITIONS}")
         _cake_pkg_install("${pk}" "${defs}")
       endif()
       if(ARG_PK_OUT)
