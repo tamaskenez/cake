@@ -75,6 +75,8 @@ if(NOT CAKE_ADD_SUBDIRECTORY_INCLUDED)
 
     if(ARG_GROUP)
       list(APPEND opts GROUP "${ARG_GROUP}")
+    else()
+      list(APPEND opts GROUP "${PROJECT_NAME}")
     endif()
 
     cake_pkg(CLONE ${opts} DESTINATION "${ARG_SOURCEDIR_ABS}" PK_OUT pk)

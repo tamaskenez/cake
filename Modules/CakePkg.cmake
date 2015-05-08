@@ -35,7 +35,7 @@
 #
 # Usually you don't call `cake_pkg(CLONE ...)` with `DESTINATION` directly, instead you call `cake_add_subdirectory()`.
 #
-# ``<group>`` can be used to group packages, defaults to ``${PROJECT_NAME}`` or to ``_ungrouped_`` in script mode.
+# ``<group>`` can be used to group packages, defaults to ``_ungrouped_``
 #
 # 2. INSTALL
 #
@@ -781,10 +781,8 @@ if(NOT CAKE_PKG_INCLUDED)
 
     if(ARG_GROUP)
       set(group "${ARG_GROUP}")
-    elseif("${PROJECT_NAME}" STREQUAL "")
-      set(group "_ungrouped_")
     else()
-      set(group "${PROJECT_NAME}")
+      set(group "_ungrouped_")
     endif()
 
     if((NOT ARG_NAME AND NOT ARG_URL) AND (ARG_CLONE OR ARG_INSTALL))
