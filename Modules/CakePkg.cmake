@@ -538,6 +538,21 @@ if(NOT CAKE_PKG_INCLUDED)
     endif()
   endmacro()
 
+  function(_cake_update_last_build_time shortcid)
+    _cake_get_pkg_configuration_types()
+    set(configuration_types "${ans}")
+
+    foreach(c ${configuration_types})
+      set(last_build_pars_path ${CAKE_PKG_BUILD_DIR}/${shortcid}_${c}/cake_pkg_last_build_pars.txt)
+      if(EXISTS "${last_build_pars_path}")
+        file(TIMESTAMP "${last_build_pars_path}" this_build_time UTC)
+        if(NOT CAKE_LAST_BUILD_TIME OR (CAKE_LAST_BUILD_TIME STRLESS this_build_time))
+          cake_set_session_var(CAKE_LAST_BUILD_TIME "${this_build_time}")
+        endif()
+      endif()
+    endforeach()
+  endfunction()
+
   # pk: primary key of entry in repo_db
   function(_cake_pkg_install pk definitions)
     cake_repo_db_get_field_by_pk(destination "${pk}")
@@ -578,6 +593,7 @@ if(NOT CAKE_PKG_INCLUDED)
           "Solution: make sure all packages having a shared dependency specify the same build "
           "settings (defines) for the dependency.")
       else()
+        _cake_update_last_build_time("${shortcid}")
         return()
       endif()
     endif()
@@ -591,9 +607,15 @@ if(NOT CAKE_PKG_INCLUDED)
     cake_repo_db_get_field_by_pk(name "${pk}")
     set(name "${ans}")
 
+    set(CAKE_LAST_BUILD_TIME_SAVED "${CAKE_LAST_BUILD_TIME}")
+    cake_set_session_var(CAKE_LAST_BUILD_TIME "")
+
     _cake_include_cake_pkg_depends(
       "${destination}/cake-pkg-depends.cmake"
       "${cid}" "${name}" "${definitions}")
+
+    set(dependencies_last_build_time "${CAKE_LAST_BUILD_TIME}")
+    cake_set_session_var(CAKE_LAST_BUILD_TIME "${CAKE_LAST_BUILD_TIME_SAVED}")
 
     # now configure and build the install target of this package with cmake
     _cake_get_pkg_configuration_types()
@@ -607,12 +629,17 @@ if(NOT CAKE_PKG_INCLUDED)
       set(last_build_pars_path ${CAKE_PKG_BUILD_DIR}/${shortcid}_${c}/cake_pkg_last_build_pars.txt)
       set(last_build_pars "")
       if(EXISTS "${last_build_pars_path}")
+        file(TIMESTAMP "${last_build_pars_path}" last_build_time UTC)
         file(STRINGS "${last_build_pars_path}" last_build_pars) # reads semicolons as backslash+semicolon, that's good
       else()
         set(last_build_pars "COMMIT=")
+        set(last_build_time "")
       endif()
 
-      if(NOT last_build_pars STREQUAL build_pars_now) # last install is non-existent or outdated
+      if(
+        (NOT dependencies_last_build_time STRLESS last_build_time) OR
+        (NOT last_build_pars STREQUAL build_pars_now) # last install is non-existent or outdated
+      )
         cake_message(STATUS "Building the install target (${c}) for package ${project_title}")
 
         # remove pars from last build
@@ -636,15 +663,25 @@ if(NOT CAKE_PKG_INCLUDED)
           endif()
         endforeach()
 
+        string(RANDOM LENGTH 10 randomfile)
+        set(randomfile "${CAKE_PKG_INSTALL_PREFIX}/tmp/cake_pkg_${randomfile}.cmake")
+        set(f "")
+        foreach(v CAKE_PKG_CONFIGURATION_TYPES CAKE_PKG_CMAKE_ARGS CAKE_PKG_CMAKE_NATIVE_TOOL_ARGS CAKE_PKG_CLONE_DEPTH)
+          if(DEFINED ${v})
+            set(f "${f}\nset(${v} \"${${v}}\")") # works fine if ${v} contains nested list
+          endif()
+        endforeach()
+        file(WRITE "${randomfile}" "${f}")
         # call cmake configure
         set(binary_dir ${CAKE_PKG_BUILD_DIR}/${shortcid}_${c})
         set(command_line
-            -DCMAKE_BUILD_TYPE=${c}
-            -DCAKE_ROOT=${CAKE_ROOT}
+            "-DCMAKE_BUILD_TYPE=${c}"
+            "-DCAKE_ROOT=${CAKE_ROOT}"
             "${CAKE_PKG_CMAKE_ARGS}"
             "${unset_definitions}"
             "${definitions}"
-            -DCAKE_PKG_LOAD_THE_SESSION_VARS=1
+            "-DCAKE_PKG_LOAD_THE_SESSION_VARS=1"
+            "-DCAKE_PKG_CONFIG_VARS_FILE=${randomfile}"
             "${destination}"
         )
 
@@ -655,12 +692,13 @@ if(NOT CAKE_PKG_INCLUDED)
         execute_process(COMMAND ${CMAKE_COMMAND} ${command_line}
           RESULT_VARIABLE res_var
           WORKING_DIRECTORY "${binary_dir}")
+        file(REMOVE "${randomfile}")
         if(res_var)
           message(FATAL_ERROR "[cake] CMake configuration failed, check the previous lines for the actual error.")
         endif()
 
         # call cmake build
-        set(command_line --build "${binary_dir}" --target install --config ${c} -- ${CAKE_PKG_NATIVE_TOOL_ARGS})
+        set(command_line --build "${binary_dir}" --target install --config ${c} -- ${CAKE_PKG_CMAKE_NATIVE_TOOL_ARGS})
         cake_list_to_command_line_like_string(s "${command_line}")
         cake_message(STATUS "cmake ${s}")
         execute_process(COMMAND ${CMAKE_COMMAND} ${command_line} RESULT_VARIABLE res_var)
@@ -673,11 +711,13 @@ if(NOT CAKE_PKG_INCLUDED)
         foreach(i ${build_pars_now})
           set(s "${s}${i}\n")
         endforeach()
-        file(WRITE ${last_build_pars_path} "${s}")
+        file(WRITE "${last_build_pars_path}" "${s}")
       else()
         cake_message(STATUS "Configuration '${c}' already installed from commit ${repo_sha} with same definitions, skipping build.")
       endif()
     endforeach()
+
+    _cake_update_last_build_time("${shortcid}")
 
   endfunction()
 

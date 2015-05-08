@@ -2,47 +2,45 @@
 # CakeLoadConfig
 # --------------
 #
-# Loads the Cake configuration variables from the shell environment or configuration file. You don't need
-# call this macro directly, it's called automatically whenever it's needed.
+# Including this file loads the Cake configuration variables from the shell environment or configuration file.
+# Don't include this file directly, it's included by `Cake.cmake`.
 # This file is provided here to document the Cake configuration variables and also the usage of the
-# `CAKE_PKG_URL_OF*` variables and `cake_pkg_depends()` which describe additional (optional) information
+# ``CAKE_PKG_URL_OF*`` variables and `CAKE_PKG_CMAKE_DEPENDS()` which describe additional (optional) information
 # about the location of the packages and their dependencies.
 #
-# ::
+# Overview
+# ========
 #
-#   CAKE_LOAD_CONFIG()
+# The Cake configuration consists of a few CMake variables, see the list below. They can be set directly
+# in your CMakeLists.txt or in environment variables.
 #
-# This command (called automatically) loads the configuration variables from shell environment variables. See below the list of variables.
-# 
 # If the ``CAKE_CONFIG_FILE`` environment variable is set then that file will also be included. The script usually contains
 # simple CMake `set()` commands to set the configuration variables, like ``set(CAKE_CMAKE_ARGS -GXcode)``
 #
-# You can also set the configuration variables in your CMakeLists.txt as plain CMake variables. Note that
-# variables set this way will not be available in child `cmake` processes launched by ``cake_pkg(INSTALL ...)`` while
-# variables from the environment and set in the config file will be.
+# Configuration variables set at multiple locations have well defined priority:
 #
-# The CAKE_LOAD_CONFIG macro also ensures the correct priority between variables set in the environment, set in the config file and
-# set in in the CMakeLists.txt:
-#
-# - plain CMake variables have the highest priority
+# - plain CMake variables have the highest priority (even when set before including `Cake.cmake`)
 # - variables set in the environment have the next highest priority
 # - variables set in the config file have the lowest priority
 #
 # In the config file, besides the Cake configuration variables you can also
 #
-# - define URLs for package names by setting ``CAKE_PKG_URL_OF_<name>`` variables:
+# - define URLs for package names by setting ``CAKE_PKG_URL_OF_<name>`` variables (see below)
 # - define scripts for packages which install the dependencies of the package (see `CakePkgDepends.cmake`).
 #
-# You can add the calls directly to your Cake config file, or (better) create separate files which you
-# include in the config file.
+# You can add the calls directly to your Cake config file, or (better) create separate files containing
+# lists of URLs of packages (list of ``set(CAKE_PKG_URL_OF...)`` commands) and lists of `cake_pkg_depends()`
+# commands. You can include those in the Cake config file.
 #
-# Example ``CAKE_PKG_URL_OF_<name>`` commands:
+# ``CAKE_PKG_URL_OF_<name>`` examples
+# ===================================
+#
 # Instead of installing zlib and png with
 #
 #    cake_pkg(INSTALL URL https://github.com/madler/zlib.git)
 #    cake_pkg(INSTALL URL git://git.code.sf.net/p/libpng/code)
 #
-# You can create a file which contains the URL of all the packages you need. The URLs
+# you can create a file which contains the URL of all the packages you need. The URLs
 # must be assigned to variables named according to this pattern: ``CAKE_PKG_URL_OF_<name>``
 # where <name> is the find-package name (identical case, not upper-case!)
 #
@@ -139,7 +137,7 @@ if(NOT CAKE_LOAD_CONFIG_INCLUDED)
     endforeach()
 endmacro()
 
-  macro(cake_load_config)
+  macro(_cake_load_config_core)
 
     set(CAKE_LOAD_CONFIG_DONE 0)
 
@@ -164,6 +162,17 @@ endmacro()
         separate_arguments(${_v} ${_cake_system}_COMMAND "$ENV{${_v}}")
       endif()
     endforeach()
+
+    # if the user changes the config variables in the CMakeLists.txt
+    # (e.g. CAKE_PKG_CMAKE_ARGS) it should be passed to the child cmake processes
+    # building the packages
+    # So they are saved to this file if this CMake run is started by
+    # parent CMake run.
+    # They have higher priority than the env and user config file variables
+    # but lower then the variables already set in this CMake run.
+    if(CAKE_PKG_CONFIG_VARS_FILE)
+      include("${CAKE_PKG_CONFIG_VARS_FILE}")
+    endif()
 
     _cake_restore_stashed_config_vars()
 
@@ -232,10 +241,10 @@ endmacro()
   endmacro()
 
   # run-once code
-  cake_load_config()
+  _cake_load_config_core()
 
   # extract CMAKE_INSTALL_PREFIX from CAKE_PKG_CMAKE_ARGS
-  unset(CAKE_PKG_INSTALL_PREFIX)
+  set(CAKE_PKG_INSTALL_PREFIX "")
   _cake_extract_define_from_command_line("${CAKE_PKG_CMAKE_ARGS}" CMAKE_INSTALL_PREFIX CAKE_PKG_INSTALL_PREFIX)
 
   if(NOT CAKE_PKG_INSTALL_PREFIX)
