@@ -61,7 +61,6 @@ if(NOT CAKE_PKG_DEPENDS_INCLUDED)
   macro(cake_pkg_depends)
     cmake_parse_arguments(_cake_arg "" "URL;NAME;CODE;SCRIPT" "" ${ARGN})
 
-
     if(_cake_arg_URL)
       if(_cake_arg_NAME)
         message(FATAL_ERROR "[cake_pkg_depends]: Both URL and NAME are specified.")
