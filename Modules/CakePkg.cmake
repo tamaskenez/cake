@@ -289,7 +289,7 @@ if(NOT CAKE_PKG_INCLUDED)
     else()
       set(pk_from_name "")
     endif()
-
+  
     if(pk_from_name)
       if(pk_from_url)
         if(pk_from_name EQUAL pk_from_url)
@@ -321,9 +321,18 @@ if(NOT CAKE_PKG_INCLUDED)
     else()
       set(existing_destination "")
     endif()
+  
+  # following hack is to solve for example "c:/" != "C:/" problems
+  if(destination)
+    get_filename_component(destination "${destination}" ABSOLUTE)
+  endif()
+  if(existing_destination)
+    get_filename_component(existing_destination "${existing_destination}" ABSOLUTE)
+  endif()
 
     if(existing_destination)
       # nothing to do, if no explicit destination specified, or it's the same as previous
+    cmake_print_variables(destination existing_destination)
       if(NOT destination OR destination STREQUAL existing_destination)
         set(ans "${pk}" PARENT_SCOPE)
         return()
