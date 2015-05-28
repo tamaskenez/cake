@@ -1,29 +1,38 @@
-#     cake [options] <cmake-source-dir>|<cmake-binary-dir>
+#     cake [options] <cmake-source-dir>
 #
-# You can specify either <cmake-source-dir> or <cmake-binary dir>
-# or both. If you specify <cmake-source-dir> only then the <cmake-binary-dir>
-# will be automatically determined from the CAKE_BINARY_DIR_PREFIX
-# environment variable. Alternatively you can specify this and
-# other Cake configuration variable in the file given in the CAKE_FThe cmake-source-dir must contain CMakeLists.txt. 
+# The `cake` command applies the project settings specified in the Cake
+# project file (``cake-project.cmake``) then executes one of the
+# following operations:
 #
-# If no cmake-binary-dir is given then the Cake configuration variable
-# CAKE_BINARY_DIR_PREFIX controls the location of the cmake-binary-dir.
-# In that case the last component of the cake-source-dir path will be
-# appended to the value of CAKE_BINARY_DIR_PREFIX.
-# If no CAKE_BINARY_DIR_PREFIX is set in the configuration file or environment
-# variable then the binary dir will be created in the system temporary dir.
-# For more information about the Cake configuration variables see Modules/CakeLoadConfig.cmake
+# - calls `cmake` configuration or build steps
+# - launches `cmake-gui` or the IDE
 #
-# [options] can be either the standard CMake configuration options (see cmake documentation)
+# The `cake` commands accepts most of the options `cake` accepts so
+# you can use `cake` as a drop-in replacement of `cmake`.
+# One important difference is that you don't need to specify the binary
+# directory, it will be created to an automatic location,
+# see the CAKE_BINARY_DIR_PREFIX variable below.
+#
+# The Cake scripts also implement a lightweight package and repository manager.
+# It provides support to download and install packages (libraries), manage
+# the dependencies and the repositories.
+# Certain project settings control the package manager functionality.
+# For more information see the documentation for the `cake_pkg` command.
+#
+# Options
+# =======
+#
+# [options] can be either the standard CMake configuration options (see CMake documentation)
 # or Cake-specific options.
 #
-# Cmake configuration options:
+# CMake configuration options accepted:
 #
 #     -C <initial-cache>
 #     -D <var>[:<type>]=<value>
 #     -U <globbing-expr>
 #     -G <generator-name>
 #     -T <toolset-name>
+#     -A <platform-name>
 #     -W[no-]dev
 #     -N
 #
@@ -33,16 +42,16 @@
 # Cake-specific options for the generator step:
 #
 #     --rm-bin
-#         remove the binary dir before calling cmake
+#         remove the binary dir before calling `cmake`
 #     -c <cfg>, --config <cfg>
 #         specifies which configuration to generate
-#         (for single-config generators like make)
+#         (for single-config generators like `make`)
 #         or which opt_configs to build (for multi-config
-#         generators like XCode)
+#         generators like `XCode`)
 #         <cfg> is one of Debug, Release, ReleaseWithDebInfo, MinSizeRel
 #         You can also specify multiple opt_configs:
 #         -c Release -c ReleaseWithDebInfo
-#     -R, debug-release
+#     -R, --debug-release
 #         same as -c Debug -c Release
 #     --ide
 #         open the project in the IDE (currently Xcode or Visual Studio)
@@ -63,21 +72,85 @@
 #         shortcut for --target=install
 #     --clean-first
 #     --use-stderr
-#     --
+#     -- <native-tool-options>
 #         see cmake --build docs
-#         note: you need to specify either -b or -t
+#         note: to build you need to specify either -b or -t
 #
 # Note: all parametrized options can be written in one word,
 # without space space-separator: '-t mytarget' and '-tmytarget'.
 # The long form can be written with space instead of '=':
 # '--target mytarget' and '--target=mytarget'
+#
+# Cake project file
+# =====================
+#
+# You need to specify certain project settings in a ``cake-project.cmake``
+# file or use the default project settings.
+# Certain project settings (like CMAKE_INSTALL_PREFIX) can also be
+# specified on the command line. The command line takes precedence in
+# those cases.
+#
+# The ``cake-project.cmake`` file is searched in the current directory.
+# If not found `cake` attempts to load the project file from the directory
+# specified in the CAKE_PROJECT_DIR environment variable.
+# If no project file found that default settings will be applied.
+#
+# After loading ``cake-project.cmake`` the command also attempts to load
+# ``cake-project-user.cmake`` from the same directory. This file can
+# contain settings specific to the local machine and should no be put
+# under version control.
+#
+# The ``cake-project.cmake`` and ``cake-project-user.cmake`` files usually
+#  contains ``set(<var> <value>)`` commands but may contain any CMake script.
+#
+# Cake project settings
+# =====================
+#
+# Following is the list of the Cake project configuration variables
+# that can be set in the ``cake-project.cmake`` file (all variables
+# must be normal, non-cache CMake variables):
+#
+# Usual CMake settings:
+#
+# - CMAKE_GENERATOR, CMAKE_GENERATOR_PLATFORM and CMAKE_GENERATOR_TOOLSET:
+#   they correspond to `cmake` options -G, -A and -T
+# - CMAKE_INSTALL_PREFIX, CMAKE_PREFIX_PATH (can be a list)
+# - CMAKE_ARGS: any option that can be passed to `cmake`
+#
+# Note: You can specify any options with CMAKE_ARGS including options
+# listed here (CMAKE_GENERATOR, etc..) but certain settings
+# are easier to set and modify using the standalone variables.
+#
+# These options can be overridden on the `cake` command line, too.
+#
+# Cake settings:
+#
+# - CAKE_BINARY_DIR_PREFIX: the binary directory of the project will
+#   be created under this directory. The default value is ${CAKE_PROJECT_DIR}/build
+# 
+# Cake package settings:
+# 
+# - CAKE_PKG_CONFIGURATION_TYPES: list of configuration values (Debug, Release).
+#   The installed packages (see `cake_pkg`) will be built and installed in
+#   these configurations. Default value is ``Release``.
+# - CAKE_PKG_PROJECT_DIR: by default the installed packages will be configured
+#   with the same project settings as the project that installs them.
+#   You can specify another project (for example, your local package library in
+#   your user directory. This allows sharing the same packages between projects.
+# - CAKE_PKG_CLONE_DIR: Package sources will be cloned into this directory, if
+#   not specified otherwise. Default value: ${CAKE_PROJECT_DIR}/clone.
+# - CAKE_PKG_REGISTRIES: List of package registry files (local or URLs) containing
+#   a list of cake_pkg(REGISTER ...) commands that may describe URLs, dependency
+#   information and other data for packages.
+#   For example, you can store a package registry file on your local git server
+#   which lists all the packages available on the server. You can later install
+#   them by name instead of URL.
 
 cmake_minimum_required(VERSION 3.1)
 
 get_filename_component(CAKE_ROOT ${CMAKE_CURRENT_LIST_DIR}/.. ABSOLUTE)
 
 include(${CAKE_ROOT}/Modules/private/CakePrivateUtils.cmake)
-include(${CMAKE_CURRENT_LIST_DIR}/private.cmake)
 
 unset(opt_source_dir) # source dir specified on the command line
 unset(opt_binary_dir) # binary dir specified on the command line
