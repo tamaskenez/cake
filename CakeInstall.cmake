@@ -1,7 +1,7 @@
 # Cake install script
 # ===================
 #
-# Git-clones the Cake repository into ${CMAKE_CURRENT_LIST_DIR}
+# Git-clones the Cake repository into ${CMAKE_CURRENT_LIST_DIR}/cake_root
 # and sets CAKE_ROOT in cache
 #
 # Usage:
@@ -28,7 +28,7 @@
 # - Put the following script into your (top) CmakeLists.txt:
 #
 #    if(NOT EXISTS "${CAKE_ROOT}/Cake.cmake")
-#        file(DOWNLOAD https://github.com/tamaskenez/cake/blob/master/CakeInstall.cmake ${CMAKE_BINARY_DIR})
+#        file(DOWNLOAD https://raw.githubusercontent.com/tamaskenez/cake/master/CakeInstall.cmake ${CMAKE_BINARY_DIR})
 #        include(${CMAKE_BINARY_DIR}/CakeInstall.cmake)
 #    endif()
 #    include(${CAKE_ROOT}/Cake.cmake)
@@ -46,39 +46,54 @@
 #         cmake -P CakeInstall.cmake     
 #     fi
 # 
-# The script makes sure Cake is installed to ./cake_root and sets the CAKE_ROOT the environment variable.
-# In your CMakeLists.txt you can use it directly::
+# In your CMakeLists.txt use the CAKE_ROOT environment variable to find Cake::
 #
-#     include($ENV{CAKE_ROOT}/Cake.cmake) # automatically sets the CAKE_ROOT cache var
+#     include($ENV{CAKE_ROOT}/Cake.cmake) # also sets the CAKE_ROOT cache variable to $ENV{CAKE_ROOT} in turn
 #
 # 3. Install Cake to a user or system location:
 #
 # - cd into the directory you want to install cake to
 # - execute the shell command:
 #
-#     wget https://github.com/tamaskenez/cake/blob/master/CakeInstall.cmake && cmake -P CakeInstall.cmake
+#     curl https://raw.githubusercontent.com/tamaskenez/cake/master/CakeInstall.cmake -o CakeInstall.cmake && cmake -P CakeInstall.cmake
 #     
 
-find_package(Git REQUIRED)
+# set CAKE_ROOT and verify existing environment variable
 set(CAKE_ROOT ${CMAKE_CURRENT_LIST_DIR}/cake_root CACHE PATH "Cake install directory" FORCE)
-file(REMOVE_RECURSE ${CAKE_ROOT})
-if(DEFINED CMAKE_SCRIPT_MODE_FILE)
-  message("Set the CAKE_ROOT environment variable to ${CAKE_ROOT}")
-else()
-  message(STATUS "CAKE_ROOT set to ${CAKE_ROOT}")
+if(NOT "$ENV{CAKE_ROOT}" STREQUAL "" AND NOT "$ENV{CAKE_ROOT}" STREQUAL CAKE_ROOT)
+  message(FATAL_ERROR "[cake] The CAKE_ROOT environment variable set to $ENV{CAKE_ROOT} which is different from ${CAKE_ROOT} where CakeInstall.cmake intends to install Cake to. Remove CAKE_ROOT from the environment and re-run CakeInstall.cmake.")
 endif()
+
+# remove existing installation
+file(REMOVE_RECURSE ${CAKE_ROOT})
+
+message("Installing Cake to ${CAKE_ROOT}")
+
+if(CAKE_INSTALL_FULL_CLONE)
+  set(_cake_depth_flags "")
+  set(_cake_depth_flags_string "")
+else()
+  set(_cake_depth_flags --depth 1)
+  set(_cake_depth_flags_string "--depth 1 ")
+endif()
+
+message(STATUS "[cake] git clone ${_cake_depth_flags_string}${CAKE_GIT_URL} ${CAKE_ROOT}")
+
+find_package(Git REQUIRED)
 set(CAKE_GIT_URL https://github.com/tamaskenez/cake)
-message(STATUS "git clone --depth 1 ${CAKE_GIT_URL} ${CAKE_ROOT}")
+
 execute_process(
       COMMAND ${GIT_EXECUTABLE} clone
-        --depth 1 ${CAKE_GIT_URL}
-        --branch feature/project
+        ${_cake_depth_flags}
+        ${CAKE_GIT_URL}
         ${CAKE_ROOT}
       RESULT_VARIABLE _cake_git_result_variable)
+
 if(_cake_git_result_variable)
   message(FATAL_ERROR "[cake] Failed to clone the Cake repository")
 endif()
 if(NOT EXISTS ${CAKE_ROOT}/Cake.cmake)
   message(FATAL_ERROR "[cake] Git-clone was successful but Cake.cmake is missing")
 endif()
+
 file(REMOVE ${CMAKE_CURRENT_LIST_FILE})
