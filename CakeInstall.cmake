@@ -60,7 +60,8 @@
 
 # set CAKE_ROOT and verify existing environment variable
 set(CAKE_ROOT ${CMAKE_CURRENT_LIST_DIR}/cake_root CACHE PATH "Cake install directory" FORCE)
-if(NOT "$ENV{CAKE_ROOT}" STREQUAL "" AND NOT "$ENV{CAKE_ROOT}" STREQUAL CAKE_ROOT)
+file(TO_CMAKE_PATH "$ENV{CAKE_ROOT}" _CAKE_ROOT_FROM_ENV)
+if(_CAKE_ROOT_FROM_ENV AND NOT _CAKE_ROOT_FROM_ENV STREQUAL CAKE_ROOT)
   message(FATAL_ERROR "[cake] The CAKE_ROOT environment variable set to $ENV{CAKE_ROOT} which is different from ${CAKE_ROOT} where CakeInstall.cmake intends to install Cake to. Remove CAKE_ROOT from the environment and re-run CakeInstall.cmake.")
 endif()
 
