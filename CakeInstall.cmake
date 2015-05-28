@@ -60,9 +60,20 @@
 
 # set CAKE_ROOT and verify existing environment variable
 set(CAKE_ROOT ${CMAKE_CURRENT_LIST_DIR}/cake_root CACHE PATH "Cake install directory" FORCE)
+
+# Complicated hack follows.
+# The intention is only to test if $ENV{CAKE_ROOT} == ${CAKE_ROOT}
+# The problem is that on windows CMAKE_CURRENT_LIST_DIR and thus CAKE_ROOT uses upper-case drive letter
+# but $ENV{CAKE_ROOT} may contain lower-case drive letter
 file(TO_CMAKE_PATH "$ENV{CAKE_ROOT}" _CAKE_ROOT_FROM_ENV)
-if(_CAKE_ROOT_FROM_ENV AND NOT _CAKE_ROOT_FROM_ENV STREQUAL CAKE_ROOT)
-  message(FATAL_ERROR "[cake] The CAKE_ROOT environment variable set to $ENV{CAKE_ROOT} which is different from ${CAKE_ROOT} where CakeInstall.cmake intends to install Cake to. Remove CAKE_ROOT from the environment and re-run CakeInstall.cmake.")
+if(_CAKE_ROOT_FROM_ENV)
+  if(_CAKE_ROOT_FROM_ENV MATCHES "^([a-z]):/") # lower-case windows drive letter
+    string(TOUPPER "${CMAKE_MATCH_1}" _cake_drive_letter_upper)
+    string(REGEX REPLACE "^[a-z]" "${_cake_drive_letter_upper}" _CAKE_ROOT_FROM_ENV "${_CAKE_ROOT_FROM_ENV}")
+  endif()
+  if(NOT _CAKE_ROOT_FROM_ENV STREQUAL CAKE_ROOT)
+    message(FATAL_ERROR "[cake] The CAKE_ROOT environment variable set to $ENV{CAKE_ROOT} which is different from ${CAKE_ROOT} where CakeInstall.cmake intends to install Cake to. Remove CAKE_ROOT from the environment or change it to ${CAKE_ROOT} and re-run CakeInstall.cmake.")
+  endif()
 endif()
 
 # remove existing installation
