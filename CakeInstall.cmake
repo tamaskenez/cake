@@ -72,6 +72,7 @@ message(STATUS "git clone --depth 1 ${CAKE_GIT_URL} ${CAKE_ROOT}")
 execute_process(
       COMMAND ${GIT_EXECUTABLE} clone
         --depth 1 ${CAKE_GIT_URL}
+        --branch feature/project
         ${CAKE_ROOT}
       RESULT_VARIABLE _cake_git_result_variable)
 if(_cake_git_result_variable)
