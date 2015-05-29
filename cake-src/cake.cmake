@@ -112,10 +112,12 @@
 #
 # Usual CMake settings:
 #
-# - CMAKE_GENERATOR, CMAKE_GENERATOR_PLATFORM and CMAKE_GENERATOR_TOOLSET:
+# - CMAKE_GENERATOR, CMAKE_GENERATOR_TOOLSET and CMAKE_GENERATOR_PLATFORM:
 #   they correspond to `cmake` options -G, -A and -T
 # - CMAKE_INSTALL_PREFIX, CMAKE_PREFIX_PATH (can be a list)
 # - CMAKE_ARGS: any option that can be passed to `cmake`
+# - CMAKE_NATIVE_TOOL_ARGS: options passed to the native build tool
+#   (options after '--' when invoking ``cmake --build``)
 #
 # Note: You can specify any options with CMAKE_ARGS including options
 # listed here (CMAKE_GENERATOR, etc..) but certain settings
@@ -145,6 +147,16 @@
 #   For example, you can store a package registry file on your local git server
 #   which lists all the packages available on the server. You can later install
 #   them by name instead of URL.
+# - CAKE_PKG_CLONE_DEPTH:
+#   For the ``cake_pkg(INSTALL|CLONE ...)`` commands this variable controls the
+#   depth parameter of the ``git clone --depth <d>`` command.
+#   Set to zero to clone at unlimited depth. If undefined or empty the default
+#   behaviour will be used, which is to
+#   - clone with ``--depth=1`` when cloning to an automatic location (that is,
+#     the DESTINATION parameter is not specified)
+#   - clone at unlimited depth when cloning to a specific location (that is, the
+#     DESTINATION parameter is set, including, for example, when
+#     `cake_add_subdirectory` calls ``cake_PKG(CLONE ...)``.
 
 cmake_minimum_required(VERSION 3.1)
 
@@ -302,7 +314,7 @@ if(opt_binary_dir)
 	set(binary_dir_from_args 1)
 endif()
 
-if(NOT EXISTS ${cake_source_dir}/CMakeLists.txt)
+if(NOT EXISTS "${cake_source_dir}/CMakeLists.txt")
 	message(FATAL_ERROR "[cake] Internal error: at this point we should have a valid cake_source_dir")
 endif()
 
@@ -311,11 +323,43 @@ cake_message(STATUS "Source dir: '${cake_source_dir}'")
 include(${CMAKE_CURRENT_LIST_DIR}/set_cake_tmp_dir.cmake)
 
 # load config from env vars
-include(${CAKE_ROOT}/Modules/CakeLoadConfig.cmake)
+include(${CAKE_ROOT}/Modules/private/CakeProject.cmake)
 
-set(CAKE_ARGS "${CAKE_CMAKE_ARGS}")
+       
+     
+_cake_get_project_var(EFFECTIVE CMAKE_ARGS)
+set(CAKE_ARGS "${ans}")
+
+_cake_get_project_var(EFFECTIVE CMAKE_GENERATOR)
+if(ans)
+	list(APPEND CAKE_ARGS "-G${ans}")
+endif()
+
+_cake_get_project_var(EFFECTIVE CMAKE_GENERATOR_TOOLSET)
+if(ans)
+	list(APPEND CAKE_ARGS "-T${ans}")
+endif()
+
+_cake_get_project_var(EFFECTIVE CMAKE_GENERATOR_PLATFORM)
+if(ans)
+	list(APPEND CAKE_ARGS "-A${ans}")
+endif()
+
+_cake_get_project_var(EFFECTIVE CMAKE_INSTALL_PREFIX)
+if(ans)
+	list(APPEND CAKE_ARGS "-DCMAKE_INSTALL_PREFIX=${ans}")
+endif()
+
+_cake_get_project_var(EFFECTIVE CMAKE_PREFIX_PATH)
+if(ans)
+	list(APPEND CAKE_ARGS "-DCMAKE_PREFIX_PATH=${ans}")
+endif()
+
 list(APPEND CAKE_ARGS "${cake_options}")
-set(CAKE_NATIVE_TOOL_ARGS "${CAKE_CMAKE_NATIVE_TOOL_ARGS}")
+
+_cake_get_project_var(EFFECTIVE CMAKE_NATIVE_TOOL_ARGS)
+set(CAKE_NATIVE_TOOL_ARGS "${ans}")
+
 list(APPEND CAKE_NATIVE_TOOL_ARGS "${cake_native_tool_options}")
 
 # initialize variables for parsing the options in CAKE_ARGS
@@ -400,20 +444,27 @@ if(cmake_build_type)
 	endif()
 endif()
 
+include(CMakePrintHelpers)
 # settle on CAKE_BINARY_DIR
 if(NOT CAKE_BINARY_DIR)
-	get_filename_component(cake_source_dir_name "${cake_source_dir}" NAME)
-	if(NOT IS_ABSOLUTE "${CAKE_BINARY_DIR_PREFIX}")
-		if(NOT CAKE_TMP_DIR)
-			message(FATAL_ERROR "[cake] Temporary dir not found for generating binary dir. Specify an absolute CAKE_BINARY_DIR_PREFIX specify the binary dir on the command line.")
-		endif()
-		if(CAKE_BINARY_DIR_PREFIX)
-			set(CAKE_BINARY_DIR_PREFIX ${CAKE_TMP_DIR}/${CAKE_BINARY_DIR_PREFIX})
-		else()
-			set(CAKE_BINARY_DIR_PREFIX ${CAKE_TMP_DIR})
-		endif()
+	_cake_get_project_var(EFFECTIVE CAKE_BINARY_DIR_PREFIX)
+	set(CAKE_BINARY_DIR_PREFIX "${ans}")
+
+	file(RELATIVE_PATH proj_to_src_path "${CAKE_PROJECT_DIR}" "${cake_source_dir}")
+
+	get_filename_component(src_dir_name "${cake_source_dir}" NAME)
+
+	if(proj_to_src_path MATCHES "^\\.\\.")
+		string(MAKE_C_IDENTIFIER "${cake_source_dir}" cake_source_dir_cid)
+		set(CAKE_BINARY_DIR "${CAKE_BINARY_DIR_PREFIX}/${cake_source_dir_cid}")
+	elseif(proj_to_src_path STREQUAL "")
+		set(CAKE_BINARY_DIR "${CAKE_BINARY_DIR_PREFIX}/${src_dir_name}")
+	elseif(proj_to_src_path STREQUAL src_dir_name)
+		set(CAKE_BINARY_DIR "${CAKE_BINARY_DIR_PREFIX}/${src_dir_name}_${src_dir_name}")
+	else()
+		string(MAKE_C_IDENTIFIER "${proj_to_src_path}" proj_to_src_path_cid)
+		set(CAKE_BINARY_DIR "${CAKE_BINARY_DIR_PREFIX}/${proj_to_src_path_cid}")
 	endif()
-	set(CAKE_BINARY_DIR ${CAKE_BINARY_DIR_PREFIX}/${cake_source_dir_name})
 endif()
 
 # try to load cmake_generator_from_cmakecache from the binary dir
@@ -437,7 +488,13 @@ else()
 endif()
 
 if(opt_ide AND NOT ide_generator)
-	message(FATAL_ERROR "[cake] No IDE generator specified for option '--ide'.")
+	if(cmake_generator_from_cmakecache)
+		message(FATAL_ERROR "[cake] You specified the option '--ide' but the generator found in the existing binary dir is ${cmake_generator} which is not an IDE generator.")
+	elseif(cmake_generator_from_command_line)
+		message(FATAL_ERROR "[cake] You specified the option '--ide' but the requested generator (${cmake_generator}) is not an IDE generator.")
+	else()
+		message(FATAL_ERROR "[cake] You specified the option '--ide' but the default generator is to be determined by CMake in the initial configuration step. Configure first without '--ide' and re-run 'cake' with '--ide'.")
+	endif()
 endif()
 
 list(LENGTH opt_configs config_count)
@@ -497,6 +554,7 @@ if(need_generate_step)
 			endif()
 			set(cmake_command_line
 				"-DCAKE_ROOT=${CAKE_ROOT}"
+				"-DCAKE_PROJECT_DIR=${CAKE_PROJECT_DIR}"
 				"${opt_generate}"
 				"${cbt}"
 				"${cake_source_dir}"
@@ -590,12 +648,17 @@ if(need_build_step)
 			if(opt_targets)
 				set(target_option --target ${t})
 			endif()
+			if(CAKE_NATIVE_TOOL_ARGS)
+				set(maybe_two_dashes --)
+			else()
+				set(maybe_two_dashes "")
+			endif()
 			set(cmake_command_line
 				--build "${binary_dir}"
 				${target_option}
 				${config_option}
 				${opt_build}
-				--
+				${maybe_two_dashes}
 				${CAKE_NATIVE_TOOL_ARGS}
 			)
 			cake_list_to_command_line_like_string(s ${cmake_command_line})
