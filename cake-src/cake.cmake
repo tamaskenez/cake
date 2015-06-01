@@ -161,6 +161,7 @@
 cmake_minimum_required(VERSION 3.1)
 
 get_filename_component(CAKE_ROOT ${CMAKE_CURRENT_LIST_DIR}/.. ABSOLUTE)
+file(TO_CMAKE_PATH "${CAKE_CURRENT_DIRECTORY}" CAKE_CURRENT_DIRECTORY)
 
 include(${CAKE_ROOT}/Modules/private/CakePrivateUtils.cmake)
 
