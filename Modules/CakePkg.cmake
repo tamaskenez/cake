@@ -360,16 +360,40 @@ if(NOT CAKE_PKG_INCLUDED)
       string(REPLACE "\t" "\;" ARG_${i} "${ARG_${i}}")
     endforeach()
 
-    # make ARG_DESTINATION absolute
-    if(NOT ("${ARG_DESTINATION}" STREQUAL "") AND NOT IS_ABSOLUTE "${ARG_DESTINATION}")
-      if(DEFINED CMAKE_SCRIPT_MODE_FILE)
-        message(FATAL_ERROR "[cake_pkg] In script mode <destination-dir> must be absolute path.")
-      else()
-        get_filename_component(ARG_DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/${ARG_DESTINATION}")
-      endif()
-    endif()
 
     if(ARG_C MATCHES "^CLONE|INSTALL$")
+
+      # make ARG_DESTINATION absolute
+      if(ARG_DESTINATION)
+        if(NOT IS_ABSOLUTE "${ARG_DESTINATION}")
+          if(DEFINED CMAKE_SCRIPT_MODE_FILE)
+            message(FATAL_ERROR "[cake_pkg] In script mode <destination-dir> must be absolute path.")
+          else()
+            get_filename_component(ARG_DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/${ARG_DESTINATION}")
+          endif()
+        endif()
+      else()
+        _cake_get_project_var(EFFECTIVE CAKE_PKG_PROJECT_DIR)
+        set(pkg_project_dir "${ans}")
+        if(pkg_project_dir)
+          if(NOT IS_DIRECTORY "${pkg_project_dir}")
+            message(FATAL_ERROR "[cake] CAKE_PKG_PROJECT_DIR: \"${pkg_project_dir}\" does not exist.")
+          endif()
+          # cake_pkg INSTALL/CLONE without DESTINATION and alternative pkg_project dir defined ->
+          # forward entire call to child process launched in other project dir
+          message(STATUS "Execute cake_pkg in CAKE_PKG_PROJECT_DIR (\"${pkg_project_dir}\")")
+          execute_process(
+            COMMAND ${CMAKE_COMMAND}
+              "-DCAKE_CURRENT_DIRECTORY=${pkg_project_dir}"
+              -P "${CAKE_ROOT}/cakepkg-src/cakepkg.cmake"
+              ${ARGV}
+            WORKING_DIRECTORY "${pkg_project_dir}"
+            RESULT_VARIABLE r)
+            message(FATAL_ERROR "r: ${r}")
+          return()
+        endif()
+      endif()
+
       _cake_load_pkg_registries()
       if(ARG_GROUP)
         set(group "${ARG_GROUP}")
