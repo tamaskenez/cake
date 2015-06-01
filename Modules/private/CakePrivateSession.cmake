@@ -29,7 +29,7 @@ if(NOT CAKE_PRIVATE_SESSION_INCLUDED)
 
   # run-once code
 
-  set(CAKE_PKG_SESSION_VARS_FILE "${CAKE_PROJECT_DIR}/.cake_pkg_session_vars.cmake")
+  set(CAKE_PKG_SESSION_VARS_FILE "${CAKE_PROJECT_DIR}/.cake/tmp/pkg_session_vars.cmake")
 
   cake_clear_session_vars()
   if(CAKE_PKG_LOAD_THE_SESSION_VARS)

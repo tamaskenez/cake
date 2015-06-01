@@ -268,7 +268,7 @@ if(NOT CAKE_PKG_INCLUDED)
   endmacro()
 
   function(_cake_update_last_build_time shortcid)
-    _cake_get_pkg_configuration_types()
+    _cake_get_project_var(EFFECTIVE CAKE_PKG_CONFIGURATION_TYPES)
     set(configuration_types "${ans}")
 
     foreach(c ${configuration_types})

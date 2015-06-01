@@ -109,7 +109,7 @@ function(_cake_pkg_install pk definitions)
   cake_set_session_var(CAKE_LAST_BUILD_TIME "${CAKE_LAST_BUILD_TIME_SAVED}")
 
   # now configure and build the install target of this package with cmake
-  _cake_get_pkg_configuration_types()
+  _cake_get_project_var(EFFECTIVE CAKE_PKG_CONFIGURATION_TYPES)
   set(configuration_types "${ans}")
 
   cake_repo_db_get_project_title("${pk}")
@@ -155,7 +155,7 @@ function(_cake_pkg_install pk definitions)
       endforeach()
 
       string(RANDOM LENGTH 10 randomfile)
-      set(randomfile "${CAKE_PKG_INSTALL_PREFIX}/tmp/cake_pkg_${randomfile}.cmake")
+      set(randomfile "${CAKE_PROJECT_DIR}/.cake/tmp/${randomfile}.cmake")
       set(f "")
       foreach(v CAKE_PKG_CONFIGURATION_TYPES CAKE_PKG_CMAKE_ARGS CAKE_PKG_CMAKE_NATIVE_TOOL_ARGS CAKE_PKG_CLONE_DEPTH)
         if(DEFINED ${v})
@@ -165,10 +165,12 @@ function(_cake_pkg_install pk definitions)
       file(WRITE "${randomfile}" "${f}")
       # call cmake configure
       set(binary_dir ${CAKE_PKG_BUILD_DIR}/${shortcid}_${c})
+      _cake_get_project_var(EFFECTIVE CMAKE_ARGS)
+      set(cmake_args ${ans})
       set(command_line
           "-DCMAKE_BUILD_TYPE=${c}"
           "-DCAKE_ROOT=${CAKE_ROOT}"
-          "${CAKE_PKG_CMAKE_ARGS}"
+          "${cmake_args}"
           "${unset_definitions}"
           "${definitions}"
           "-DCAKE_PKG_LOAD_THE_SESSION_VARS=1"
