@@ -241,29 +241,21 @@ if(NOT CAKE_PKG_INCLUDED)
   # includes the file 'cake_pkg_depends_file'
   # if that doesn't exist, looks up CAKE_PKG_DEPENDS_* variables and includes those
   # also applies the variables in 'definitions'
-  macro(_cake_include_cake_pkg_depends cake_pkg_depends_file_arg cid name definitions)
+  macro(_cake_include_cake_install_deps cake_pkg_depends_file_arg cid name definitions)
     set(_cake_pkg_depends_file "${cake_pkg_depends_file_arg}")
     set(randomfile "")
     if(NOT EXISTS "${_cake_pkg_depends_file}")
-      set(scriptvarname "")
-      if(DEFINED CAKE_PKG_DEPENDS_URL_${cid})
-        set(scriptvarname "CAKE_PKG_DEPENDS_URL_${cid}")
-      elseif(NOT "${name}" STREQUAL "" AND DEFINED CAKE_PKG_DEPENDS_NAME_${name})
-        set(scriptvarname "CAKE_PKG_DEPENDS_NAME_${name}")
-      else()
-        set(scriptvarname "")
-      endif()
-      if(scriptvarname)
+      if(NOT "${name}" STREQUAL "" AND DEFINED CAKE_PKG_REGISTRY_${name}_CODE)
         string(RANDOM LENGTH 10 randomfile)
-        set(randomfile "${CAKE_PKG_INSTALL_PREFIX}/tmp/cake_pkg_${randomfile}")
-        file(WRITE "${randomfile}" "${${scriptvarname}}")
+        set(randomfile "${CAKE_PROJECT_DIR}/tmp/${name}_install_deps_code_${randomfile}")
+        file(WRITE "${randomfile}" "${CAKE_PKG_REGISTRY_${name}_CODE}")
         set(_cake_pkg_depends_file "${randomfile}")
       endif()
     endif()
   
     if(EXISTS "${_cake_pkg_depends_file}")
-      # execute either the cake-pkg-depends.script
-      # or the script defined in the CAKE_PKG_DEPENDS_* var
+      # execute either the cake-install-deps.script
+      # or the script registered to ${name}
       # The script usually contains cake_pkg(INSTALL ...) calls to
       # fetch and install dependencies
       _cake_apply_definitions("${definitions}")

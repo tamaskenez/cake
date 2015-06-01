@@ -92,8 +92,8 @@ function(_cake_pkg_install pk definitions)
   cake_set_session_var(CAKE_PKG_${cid}_TRAVERSED_BY_PKG_INSTALL_NOW 1)
   cake_set_session_var(CAKE_PKG_${cid}_LAST_BUILD_PARS "${build_pars_now}")
 
-  # execute the repo's cake-pkg-depends.cmake script, if exists
-  # otherwise try to execute the dependency script in CAKE_PKG_DEPENDS_<name> or CAKE_PKG_DEPENDS_<urlcid>
+  # execute the repo's cake-install-deps.cmake script, if exists
+    # otherwise try to execute the script (CODE) registered to the name
 
   cake_repo_db_get_field_by_pk(name "${pk}")
   set(name "${ans}")
@@ -101,8 +101,8 @@ function(_cake_pkg_install pk definitions)
   set(CAKE_LAST_BUILD_TIME_SAVED "${CAKE_LAST_BUILD_TIME}")
   cake_set_session_var(CAKE_LAST_BUILD_TIME "")
 
-  _cake_include_cake_pkg_depends(
-    "${destination}/cake-pkg-depends.cmake"
+  _cake_include_cake_install_deps(
+    "${destination}/cake-install-deps.cmake"
     "${cid}" "${name}" "${definitions}")
 
   set(dependencies_last_build_time "${CAKE_LAST_BUILD_TIME}")

@@ -94,10 +94,10 @@ if(NOT CAKE_ADD_SUBDIRECTORY_INCLUDED)
 
     cake_set_session_var(CAKE_PKG_${cid}_ADDED_AS_SUBDIRECTORY 1)
 
-    # execute the repo's cake-pkg-depends.cmake script, if exists
-    # otherwise try to execute the dependency script in CAKE_PKG_DEPENDS_<name> or CAKE_PKG_DEPENDS_<cid>
-    _cake_include_cake_pkg_depends(
-      "${ARG_SOURCEDIR_ABS}/cake-pkg-depends.cmake"
+    # execute the repo's cake-install-deps.cmake script, if exists
+    # otherwise try to execute the script (CODE) registered to the name
+    _cake_include_cake_install_deps(
+      "${ARG_SOURCEDIR_ABS}/cake-install-deps.cmake"
       "${cid}" "${name}" "${definitions}")
 
     add_subdirectory(${add_subdir_args})
