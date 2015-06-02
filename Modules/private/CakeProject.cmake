@@ -136,6 +136,7 @@ if(NOT CAKE_PROJECT_INCLUDED)
     # clear the project setting variables for this function scope
     foreach(i ${_CAKE_PROJECT_VARS})
       set(${i} "")
+      _cake_set_project_var(${i} "")
     endforeach()
 
     # set the default values for certain variables
