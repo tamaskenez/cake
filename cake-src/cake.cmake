@@ -35,6 +35,13 @@
 #     -A <platform-name>
 #     -W[no-]dev
 #     -N
+#     --debug-trycompile
+#     --debug-output
+#     --trace
+#     --warn-uninitialized
+#     --warn-unused-vars
+#     --no-warn-unused-cli
+#     --check-system-vars
 #
 # Note: all parametrized options can also be written in one word,
 # without space-separator: '-D key=val' and '-Dkey=val'
@@ -250,7 +257,7 @@ foreach(i RANGE ${first_arg_idx} ${last_arg_idx})
 		elseif(a MATCHES "^(-C|-D|-U|-G|-T|-c|--config=|-t|--target=)(.*)$")
 			string(REPLACE ";" "\;" a "${a}")
 			list(APPEND cake_options "${a}")
-		elseif(a MATCHES "^(-W(no-)?dev|-N|--rm-bin|-R|--debug-release|-n|--install|--clean-first|--use-stderr)$")
+		elseif(a MATCHES "^(-W(no-)?dev|-N|--rm-bin|-R|--debug-release|-n|--install|--clean-first|--use-stderr|--debug-trycompile|--debug-output|--trace|--warn-uninitialized|--warn-unused-vars|--no-warn-unused-cli|--check-system-vars)$")
 			list(APPEND cake_options "${a}")
 		elseif(a STREQUAL "--ide")
 			set(opt_ide 1)
@@ -405,7 +412,7 @@ foreach(a ${CAKE_ARGS})
 			elseif(a MATCHES "^-DCMAKE_BUILD_TYPE(:.*)=(.*)$")
 				set(cmake_build_type "${CMAKE_MATCH_2}")
 			endif()
-		elseif(a MATCHES "^(-W(no-)?dev|-N)$")
+		elseif(a MATCHES "^(-W(no-)?dev|-N|--debug-trycompile|--debug-output|--trace|--warn-uninitialized|--warn-unused-vars|--no-warn-unused-cli|--check-system-vars)$")
 			list(APPEND opt_generate "${a}")
 		elseif(a MATCHES "^--rm-bin$")
 			set(opt_rm_bin 1)
