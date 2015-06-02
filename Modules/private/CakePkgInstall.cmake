@@ -65,8 +65,39 @@ function(_cake_pkg_install pk definitions)
   endif()
 
   _cake_execute_git_command_in_repo("log;-1;--pretty=format:%H" "${destination}" repo_sha)
+
+  # call cmake configure
+  _cake_get_project_var(EFFECTIVE CMAKE_ARGS)
+  set(cmake_args ${ans})
+
+  _cake_get_project_var(EFFECTIVE CMAKE_GENERATOR)
+  if(ans)
+    list(APPEND cmake_args -G "${ans}")
+  endif()
+
+  _cake_get_project_var(EFFECTIVE CMAKE_GENERATOR_TOOLSET)
+  if(ans)
+    list(APPEND cmake_args -T "${ans}")
+  endif()
+
+  _cake_get_project_var(EFFECTIVE CMAKE_GENERATOR_PLATFORM)
+  if(ans)
+    list(APPEND cmake_args -A "${ans}")
+  endif()
+
+  _cake_get_project_var(EFFECTIVE CMAKE_INSTALL_PREFIX)
+  if(ans)
+    list(APPEND cmake_args "-DCMAKE_INSTALL_PREFIX=${ans}")
+  endif()
+
+  _cake_get_project_var(EFFECTIVE CMAKE_PREFIX_PATH)
+  if(ans)
+    string(REPLACE ";" "\;" ans "${ans}")
+    list(APPEND cmake_args "-DCMAKE_PREFIX_PATH=${ans}")
+  endif()
+
   set(build_pars_now "")
-  foreach(c ${definitions} ${CAKE_PKG_CMAKE_ARGS})
+  foreach(c ${definitions} ${cmake_args})
     if(c MATCHES "^-D[^=]+=.*$")
       string(REPLACE ";" "\;" c "${c}")
       list(APPEND build_pars_now "${c}")
@@ -158,39 +189,7 @@ function(_cake_pkg_install pk definitions)
         endif()
       endforeach()
 
-      # call cmake configure
-      set(binary_dir ${CAKE_PKG_BUILD_DIR}/${shortcid}_${c})
-      _cake_get_project_var(EFFECTIVE CMAKE_ARGS)
-      set(cmake_args ${ans})
-      cake_save_session_vars()
-      set(command_line "")
-
-      _cake_get_project_var(EFFECTIVE CMAKE_GENERATOR)
-      if(ans)
-        list(APPEND command_line -G "${ans}")
-      endif()
-
-      _cake_get_project_var(EFFECTIVE CMAKE_GENERATOR_TOOLSET)
-      if(ans)
-        list(APPEND command_line -T "${ans}")
-      endif()
-
-      _cake_get_project_var(EFFECTIVE CMAKE_GENERATOR_PLATFORM)
-      if(ans)
-        list(APPEND command_line -A "${ans}")
-      endif()
-
-      _cake_get_project_var(EFFECTIVE CMAKE_INSTALL_PREFIX)
-      if(ans)
-        list(APPEND command_line "-DCMAKE_INSTALL_PREFIX=${ans}")
-      endif()
-
-      _cake_get_project_var(EFFECTIVE CMAKE_PREFIX_PATH)
-      if(ans)
-        list(APPEND command_line "-DCMAKE_PREFIX_PATH=${ans}")
-      endif()
-
-      list(APPEND command_line
+      set(command_line
           "-DCMAKE_BUILD_TYPE=${c}"
           "-DCAKE_ROOT=${CAKE_ROOT}"
           "${cmake_args}"
@@ -200,10 +199,12 @@ function(_cake_pkg_install pk definitions)
           "${destination}"
       )
 
+      set(binary_dir ${CAKE_PKG_BUILD_DIR}/${shortcid}_${c})
       cake_message(STATUS "cd ${binary_dir}")
       cake_list_to_command_line_like_string(s "${command_line}")
       cake_message(STATUS "cmake ${s}")
       file(MAKE_DIRECTORY "${binary_dir}")
+      cake_save_session_vars()
       execute_process(COMMAND ${CMAKE_COMMAND} ${command_line}
         RESULT_VARIABLE res_var
         WORKING_DIRECTORY "${binary_dir}")
