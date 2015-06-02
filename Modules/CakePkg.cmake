@@ -377,6 +377,8 @@ if(NOT CAKE_PKG_INCLUDED)
           execute_process(
             COMMAND ${CMAKE_COMMAND}
               "-DCAKE_CURRENT_DIRECTORY=${pkg_project_dir}"
+              "-DCAKE_PROJECT_DIR=${pkg_project_dir}"
+              "-DCAKE_PKG_LOAD_THE_SESSION_VARS=${CAKE_PKG_SESSION_VARS_FILE}"
               -P "${CAKE_ROOT}/cakepkg-src/cakepkg.cmake"
               ${ARGV}
             WORKING_DIRECTORY "${pkg_project_dir}"

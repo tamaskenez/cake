@@ -154,15 +154,6 @@ function(_cake_pkg_install pk definitions)
         endif()
       endforeach()
 
-      string(RANDOM LENGTH 10 randomfile)
-      set(randomfile "${CAKE_PROJECT_DIR}/.cake/tmp/${randomfile}.cmake")
-      set(f "")
-      foreach(v CAKE_PKG_CONFIGURATION_TYPES CAKE_PKG_CMAKE_ARGS CAKE_PKG_CMAKE_NATIVE_TOOL_ARGS CAKE_PKG_CLONE_DEPTH)
-        if(DEFINED ${v})
-          set(f "${f}\nset(${v} \"${${v}}\")") # works fine if ${v} contains nested list
-        endif()
-      endforeach()
-      file(WRITE "${randomfile}" "${f}")
       # call cmake configure
       set(binary_dir ${CAKE_PKG_BUILD_DIR}/${shortcid}_${c})
       _cake_get_project_var(EFFECTIVE CMAKE_ARGS)
@@ -173,8 +164,7 @@ function(_cake_pkg_install pk definitions)
           "${cmake_args}"
           "${unset_definitions}"
           "${definitions}"
-          "-DCAKE_PKG_LOAD_THE_SESSION_VARS=1"
-          "-DCAKE_PKG_CONFIG_VARS_FILE=${randomfile}"
+          "-DCAKE_PKG_LOAD_THE_SESSION_VARS=${CAKE_PKG_SESSION_VARS_FILE}"
           "${destination}"
       )
 
@@ -185,7 +175,6 @@ function(_cake_pkg_install pk definitions)
       execute_process(COMMAND ${CMAKE_COMMAND} ${command_line}
         RESULT_VARIABLE res_var
         WORKING_DIRECTORY "${binary_dir}")
-      file(REMOVE "${randomfile}")
       if(res_var)
         message(FATAL_ERROR "[cake] CMake configuration failed, check the previous lines for the actual error.")
       endif()
