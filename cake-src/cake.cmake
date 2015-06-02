@@ -366,7 +366,9 @@ if(ans)
 endif()
 
 _cake_get_project_var(EFFECTIVE CMAKE_PREFIX_PATH)
+
 if(ans)
+	string(REPLACE ";" "\;" ans "${ans}")
 	list(APPEND CAKE_ARGS "-DCMAKE_PREFIX_PATH=${ans}")
 endif()
 

@@ -46,6 +46,10 @@ endfunction()
 
 # pk: primary key of entry in repo_db
 function(_cake_pkg_install pk definitions)
+  if(NOT CAKE_PKG_BUILD_DIR)
+    message(FATAL_ERROR "[cake] Internal error, CAKE_PKG_BUILD_DIR must not be empty.")
+  endif()
+
   cake_repo_db_get_field_by_pk(destination "${pk}")
   set(destination "${ans}")
   cake_repo_db_get_field_by_pk(cid "${pk}")

@@ -138,6 +138,13 @@ if(NOT CAKE_PROJECT_INCLUDED)
       set(${i} "")
     endforeach()
 
+    # set the default values for certain variables
+    # this is required for e.g. find_package calls in cake-project files to work
+    foreach(i CMAKE_INSTALL_PREFIX CMAKE_PREFIX_PATH CAKE_BINARY_DIR_PREFIX CAKE_PKG_CONFIGURATION_TYPES CAKE_PKG_CLONE_DIR)
+      _cake_get_project_var(EFFECTIVE ${i})
+      set(${i} "${ans}")
+    endforeach()
+
     if(EXISTS "${CAKE_PROJECT_DIR}/${_CAKE_PROJECT_FILE_NAME}")
       message(STATUS "[cake] Loading ${CAKE_PROJECT_DIR}/${_CAKE_PROJECT_FILE_NAME}")
       include("${CAKE_PROJECT_DIR}/${_CAKE_PROJECT_FILE_NAME}")
@@ -177,7 +184,7 @@ if(NOT CAKE_PROJECT_INCLUDED)
     endforeach()
 
     _cake_get_project_var(EFFECTIVE CAKE_BINARY_DIR_PREFIX)
-    set(CAKE_PKG_BUILD_DIR ${ans})
+    set(CAKE_PKG_BUILD_DIR ${ans} CACHE INTERNAL "" FORCE)
 
   endfunction()
 

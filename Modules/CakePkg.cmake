@@ -363,6 +363,10 @@ if(NOT CAKE_PKG_INCLUDED)
       # Other operations depend only of CAKE_PROJECT_DIR which
       # cannot be changed on-the-fly.
       _cake_load_project_settings()
+      
+      if(NOT CAKE_PKG_BUILD_DIR)
+        message(FATAL_ERROR "[cake] Internal error, CAKE_PKG_BUILD_DIR must not be empty.")
+      endif()
 
       # make ARG_DESTINATION absolute
       if(ARG_DESTINATION)
@@ -370,7 +374,7 @@ if(NOT CAKE_PKG_INCLUDED)
           if(DEFINED CMAKE_SCRIPT_MODE_FILE)
             message(FATAL_ERROR "[cake_pkg] In script mode <destination-dir> must be absolute path.")
           else()
-            get_filename_component(ARG_DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/${ARG_DESTINATION}")
+            get_filename_component(ARG_DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/${ARG_DESTINATION}" ABSOLUTE)
           endif()
         endif()
       else()
@@ -394,7 +398,7 @@ if(NOT CAKE_PKG_INCLUDED)
             WORKING_DIRECTORY "${pkg_project_dir}"
             RESULT_VARIABLE r)
           if(r)
-            message(STATUS "[cake] cake_pkg failed in CAKE_PKG_PROJECT_DIR (\"${pkg_project_dir}\").")
+            message(FATAL_ERROR "[cake] cake_pkg failed in CAKE_PKG_PROJECT_DIR (\"${pkg_project_dir}\").")
           endif()
           return()
         endif()
