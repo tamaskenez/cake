@@ -91,17 +91,19 @@
 # Cake project file
 # =====================
 #
-# You need to specify certain project settings in a ``cake-project.cmake``
+# You need to specify project settings in a ``cake-project.cmake``
 # file or use the default project settings.
 # Certain project settings (like CMAKE_INSTALL_PREFIX) can also be
 # specified on the command line. The command line takes precedence in
 # those cases.
 #
-# The ``cake-project.cmake`` file is searched in the current directory.
-# If not found `cake` attempts to load the project file from the directory
-# specified in the CAKE_PROJECT_DIR environment variable.
-# If no project file found that default settings will be applied.
-#
+# The ``cake-project.cmake`` file is searched in the current directory
+# and above.
+# If the CAKE_PROJECT_DIR environment variable is set it will be
+# considered as project directory even if there's no ``cake-project.cmake``
+# file in that directory. The default values will be used for
+# all project settings.
+# 
 # After loading ``cake-project.cmake`` the command also attempts to load
 # ``cake-project-user.cmake`` from the same directory. This file can
 # contain settings specific to the local machine and should no be put
@@ -109,6 +111,11 @@
 #
 # The ``cake-project.cmake`` and ``cake-project-user.cmake`` files usually
 #  contains ``set(<var> <value>)`` commands but may contain any CMake script.
+#
+# When configuring a CMake project without `cake` (i.e. running `cmake` directly)
+# and the CAKE_PROJECT_DIR is not set, the CMAKE_HOME_DIRECTORY will be
+# used instead of the current directory for searching the ``cake-project.cmake``
+# file.
 #
 # Cake project settings
 # =====================
@@ -452,7 +459,6 @@ if(cmake_build_type)
 	endif()
 endif()
 
-include(CMakePrintHelpers)
 # settle on CAKE_BINARY_DIR
 if(NOT CAKE_BINARY_DIR)
 	_cake_get_project_var(EFFECTIVE CAKE_BINARY_DIR_PREFIX)
