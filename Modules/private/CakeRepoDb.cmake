@@ -1,4 +1,9 @@
 if(NOT CAKE_REPO_DB_INCLUDED)
+
+  if(NOT CAKE_PROJECT_DIR)
+    message(FATAL_ERROR "[cake] Internal error, CAKE_PROJECT_DIR should be set at this point.")
+  endif()
+  
   set(CAKE_REPO_DB_INCLUDED 1)
 
   # cake_pkg_repo_db.txt is a sequence of \t<primary-key><field>=<value> strings

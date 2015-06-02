@@ -33,7 +33,7 @@ macro(_cake_need_empty_directory dn)
 endmacro()
 
 # pkg_url is the full, decorated URL (with optional query part to specify key-value pairs)
-# destination can be empty (= calculate destination under CAKE_PKG_REPOS_DIR)
+# destination can be empty (= calculate destination under CAKE_PKG_CLONE_DIR)
 #   or non-empty (= this packaged has been added by a cake_add_subdirectory() call and will be part of the CMake project)
 # if destination is empty, since the package will not be built as a part of the CMake project (not a subdirectory)
 # group is the the resolved group (either specified or default)
@@ -138,7 +138,8 @@ function(_cake_pkg_clone pkg_url destination group name)
   
   if(NOT destination)
     # last dir of url + random
-    set(resolved_destination ${CAKE_PKG_REPOS_DIR}/${shortcid})
+    _cake_get_project_var(EFFECTIVE CAKE_PKG_CLONE_DIR)
+    set(resolved_destination "${ans}/${shortcid}")
   else()
     if(NOT IS_ABSOLUTE "${destination}")
       message(FATAL_ERROR "[cake_pkg] internal error, destination must be absolute.")

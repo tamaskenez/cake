@@ -103,25 +103,10 @@ if(NOT CAKE_PROJECT_INCLUDED)
     set(CAKE_PROJECT_VAR_${var_name} "${var_value}" CACHE INTERNAL "" FORCE)
   endmacro()
 
-  # runtime (in CMakeList.txt) settable (overrideable) variables
-  set(_CAKE_RUNTIME_PROJECT_VARS
-    CAKE_PKG_CONFIGURATION_TYPES
-    CAKE_PKG_PROJECT_DIR
-    CAKE_PKG_CLONE_DIR
-    CAKE_PKG_REGISTRIES
-    CAKE_PKG_CLONE_DEPTH
-  )
-
   macro(_cake_get_project_var mode var_name)
 
-    # for certain project vars use normal CMake var if defined
-    list(FIND _CAKE_RUNTIME_PROJECT_VARS "${var_name}" _cake_i)
-    if(_cake_i GREATER -1 AND DEFINED ${var_name})
-      set(ans "${${var_name}}")
-    else()
-      set(ans "${CAKE_PROJECT_VAR_${var_name}}")
-    endif()
-
+    set(ans "${CAKE_PROJECT_VAR_${var_name}}")
+    
     if("x${mode}x" STREQUAL "xEFFECTIVEx")
       if(ans STREQUAL "")
         if("x${var_name}x" STREQUAL "xCMAKE_INSTALL_PREFIXx")
@@ -190,6 +175,9 @@ if(NOT CAKE_PROJECT_INCLUDED)
     foreach(i ${_CAKE_PROJECT_VARS})
       _cake_set_project_var(${i} "${${i}}")
     endforeach()
+
+    _cake_get_project_var(EFFECTIVE CAKE_BINARY_DIR_PREFIX)
+    set(CAKE_PKG_BUILD_DIR ${ans})
 
   endfunction()
 

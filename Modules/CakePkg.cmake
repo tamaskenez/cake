@@ -354,6 +354,15 @@ if(NOT CAKE_PKG_INCLUDED)
 
 
     if(ARG_C MATCHES "^CLONE|INSTALL$")
+      # Project files may contain dynamic elements
+      # that depend on CMake/environment variables that may
+      # have changed since we first loaded the project settings,
+      # so we re-read project settings before
+      # executing the project-settings sensitive CLONE/INSTALL
+      # operations.
+      # Other operations depend only of CAKE_PROJECT_DIR which
+      # cannot be changed on-the-fly.
+      _cake_load_project_settings()
 
       # make ARG_DESTINATION absolute
       if(ARG_DESTINATION)
@@ -594,11 +603,6 @@ if(NOT CAKE_PKG_INCLUDED)
   if(CAKE_PKG_UPDATE_NOW)
     cake_set_session_var(CAKE_PKG_UPDATE_NOW 1)
   endif()
-
-  _cake_get_project_var(EFFECTIVE CAKE_PKG_CLONE_DIR)
-  set(CAKE_PKG_REPOS_DIR ${ans})
-  _cake_get_project_var(EFFECTIVE CAKE_BINARY_DIR_PREFIX)
-  set(CAKE_PKG_BUILD_DIR ${ans})
 
   include(${CMAKE_CURRENT_LIST_DIR}/private/CakeRepoDb.cmake)
 
