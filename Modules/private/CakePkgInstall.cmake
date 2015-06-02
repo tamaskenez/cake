@@ -158,7 +158,35 @@ function(_cake_pkg_install pk definitions)
       set(binary_dir ${CAKE_PKG_BUILD_DIR}/${shortcid}_${c})
       _cake_get_project_var(EFFECTIVE CMAKE_ARGS)
       set(cmake_args ${ans})
-      set(command_line
+      cake_save_session_vars()
+      set(command_line "")
+
+      _cake_get_project_var(EFFECTIVE CMAKE_GENERATOR)
+      if(ans)
+        list(APPEND command_line -G "${ans}")
+      endif()
+
+      _cake_get_project_var(EFFECTIVE CMAKE_GENERATOR_TOOLSET)
+      if(ans)
+        list(APPEND command_line -T "${ans}")
+      endif()
+
+      _cake_get_project_var(EFFECTIVE CMAKE_GENERATOR_PLATFORM)
+      if(ans)
+        list(APPEND command_line -A "${ans}")
+      endif()
+
+      _cake_get_project_var(EFFECTIVE CMAKE_INSTALL_PREFIX)
+      if(ans)
+        list(APPEND command_line "-DCMAKE_INSTALL_PREFIX=${ans}")
+      endif()
+
+      _cake_get_project_var(EFFECTIVE CMAKE_PREFIX_PATH)
+      if(ans)
+        list(APPEND command_line "-DCMAKE_PREFIX_PATH=${ans}")
+      endif()
+
+      list(APPEND command_line
           "-DCMAKE_BUILD_TYPE=${c}"
           "-DCAKE_ROOT=${CAKE_ROOT}"
           "${cmake_args}"
@@ -180,10 +208,24 @@ function(_cake_pkg_install pk definitions)
       endif()
 
       # call cmake build
-      set(command_line --build "${binary_dir}" --target install --config ${c} -- ${CAKE_PKG_CMAKE_NATIVE_TOOL_ARGS})
+      _cake_get_project_var(EFFECTIVE CMAKE_NATIVE_TOOL_ARGS)
+      if(ans)
+        set(native_tool_string -- ${ans})
+      else()
+        set(native_tool_string "")
+      endif()
+
+      set(command_line
+        --build "${binary_dir}"
+        --target install
+        --config ${c}
+        ${native_tool_string}
+        )
       cake_list_to_command_line_like_string(s "${command_line}")
       cake_message(STATUS "cmake ${s}")
-      execute_process(COMMAND ${CMAKE_COMMAND} ${command_line} RESULT_VARIABLE res_var)
+      execute_process(
+        COMMAND ${CMAKE_COMMAND} ${command_line}
+        RESULT_VARIABLE res_var)
       if(res_var)
         message(FATAL_ERROR "[cake] CMake build failed, check the previous lines for the actual error.")
       endif()

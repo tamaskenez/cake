@@ -373,7 +373,8 @@ if(NOT CAKE_PKG_INCLUDED)
           endif()
           # cake_pkg INSTALL/CLONE without DESTINATION and alternative pkg_project dir defined ->
           # forward entire call to child process launched in other project dir
-          message(STATUS "Execute cake_pkg in CAKE_PKG_PROJECT_DIR (\"${pkg_project_dir}\")")
+          message(STATUS "[cake] Execute cake_pkg in CAKE_PKG_PROJECT_DIR (\"${pkg_project_dir}\").")
+          cake_save_session_vars()
           execute_process(
             COMMAND ${CMAKE_COMMAND}
               "-DCAKE_CURRENT_DIRECTORY=${pkg_project_dir}"
@@ -383,7 +384,9 @@ if(NOT CAKE_PKG_INCLUDED)
               ${ARGV}
             WORKING_DIRECTORY "${pkg_project_dir}"
             RESULT_VARIABLE r)
-            message(FATAL_ERROR "r: ${r}")
+          if(r)
+            message(STATUS "[cake] cake_pkg failed in CAKE_PKG_PROJECT_DIR (\"${pkg_project_dir}\").")
+          endif()
           return()
         endif()
       endif()

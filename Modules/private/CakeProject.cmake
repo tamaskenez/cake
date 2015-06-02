@@ -45,7 +45,7 @@ if(NOT CAKE_PROJECT_INCLUDED)
   endfunction()
 
   set(_CAKE_PROJECT_FILE_NAME "cake-project.cmake")
-  set(_CAKE_USER_PROJECT_FILE_NAME "cake-project-user.cmake")
+  set(_CAKE_LOCAL_PROJECT_FILE_NAME "cake-project-local.cmake")
 
   macro(_cake_determine_project_dir)
     if(CAKE_PROJECT_DIR)
@@ -132,6 +132,8 @@ if(NOT CAKE_PROJECT_INCLUDED)
           set(ans Debug Release)
         elseif("x${var_name}x" STREQUAL "xCAKE_PKG_CLONE_DIRx")
           set(ans "${CAKE_PROJECT_DIR}/clone")
+        elseif("x${var_name}x" STREQUAL "xCAKE_BINARY_DIR_PREFIXx")
+          set(ans "${CAKE_PROJECT_DIR}/build")
         endif()
       endif()
     elseif("x${mode}x" STREQUAL "xRAWx")
@@ -144,7 +146,7 @@ if(NOT CAKE_PROJECT_INCLUDED)
 
   function(_cake_load_project_settings)
     # at this point CAKE_PROJECT_DIR is set
-    # load the optional project file and the optional user project file
+    # load the optional project file and the optional local project file
 
     # clear the project setting variables for this function scope
     foreach(i ${_CAKE_PROJECT_VARS})
@@ -155,9 +157,9 @@ if(NOT CAKE_PROJECT_INCLUDED)
       message(STATUS "[cake] Loading ${CAKE_PROJECT_DIR}/${_CAKE_PROJECT_FILE_NAME}")
       include("${CAKE_PROJECT_DIR}/${_CAKE_PROJECT_FILE_NAME}")
     endif()
-    if(EXISTS "${CAKE_PROJECT_DIR}/${_CAKE_USER_PROJECT_FILE_NAME}")
-      message(STATUS "[cake] Loading ${CAKE_PROJECT_DIR}/${_CAKE_USER_PROJECT_FILE_NAME}")
-      include("${CAKE_PROJECT_DIR}/${_CAKE_USER_PROJECT_FILE_NAME}")
+    if(EXISTS "${CAKE_PROJECT_DIR}/${_CAKE_LOCAL_PROJECT_FILE_NAME}")
+      message(STATUS "[cake] Loading ${CAKE_PROJECT_DIR}/${_CAKE_LOCAL_PROJECT_FILE_NAME}")
+      include("${CAKE_PROJECT_DIR}/${_CAKE_LOCAL_PROJECT_FILE_NAME}")
     endif()
 
     # move CMAKE_GENERATOR CMAKE_GENERATOR_TOOLSET CMAKE_GENERATOR_PLATFORM 

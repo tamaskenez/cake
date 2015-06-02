@@ -105,11 +105,11 @@
 # all project settings.
 # 
 # After loading ``cake-project.cmake`` the command also attempts to load
-# ``cake-project-user.cmake`` from the same directory. This file can
+# ``cake-project-local.cmake`` from the same directory. This file can
 # contain settings specific to the local machine and should no be put
 # under version control.
 #
-# The ``cake-project.cmake`` and ``cake-project-user.cmake`` files usually
+# The ``cake-project.cmake`` and ``cake-project-local.cmake`` files usually
 #  contains ``set(<var> <value>)`` commands but may contain any CMake script.
 #
 # When configuring a CMake project without `cake` (i.e. running `cmake` directly)
@@ -372,10 +372,11 @@ endif()
 
 list(APPEND CAKE_ARGS "${cake_options}")
 
+set(CAKE_NATIVE_TOOL_ARGS "${cake_native_tool_options}")
 _cake_get_project_var(EFFECTIVE CMAKE_NATIVE_TOOL_ARGS)
-set(CAKE_NATIVE_TOOL_ARGS "${ans}")
-
-list(APPEND CAKE_NATIVE_TOOL_ARGS "${cake_native_tool_options}")
+if(ans)
+	list(APPEND CAKE_NATIVE_TOOL_ARGS ${ans})
+endif()
 
 # initialize variables for parsing the options in CAKE_ARGS
 
@@ -462,6 +463,10 @@ endif()
 # settle on CAKE_BINARY_DIR
 if(NOT CAKE_BINARY_DIR)
 	_cake_get_project_var(EFFECTIVE CAKE_BINARY_DIR_PREFIX)
+	if(NOT ans)
+		message(FATAL_ERROR "[cake] CAKE_BINARY_DIR_PREFIX must not be empty.")
+	endif()
+
 	set(CAKE_BINARY_DIR_PREFIX "${ans}")
 
 	file(RELATIVE_PATH proj_to_src_path "${CAKE_PROJECT_DIR}" "${cake_source_dir}")
@@ -483,8 +488,7 @@ endif()
 
 # try to load cmake_generator_from_cmakecache from the binary dir
 if(NOT opt_rm_bin AND IS_DIRECTORY ${CAKE_BINARY_DIR} AND EXISTS ${CAKE_BINARY_DIR}/CMakeCache.txt)
-	file(STRINGS ${CAKE_BINARY_DIR}/CMakeCache.txt v
-		REGEX "CMAKE_GENERATOR")
+	file(STRINGS ${CAKE_BINARY_DIR}/CMakeCache.txt v REGEX "CMAKE_GENERATOR")
 	string(REGEX MATCH "^[\t ]*CMAKE_GENERATOR:INTERNAL=(.*)$" v ${v})
 	set(cmake_generator_from_cmakecache ${CMAKE_MATCH_1})
 endif()
