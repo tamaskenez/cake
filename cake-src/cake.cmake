@@ -389,6 +389,16 @@ unset(opt_targets) # list specific targets to build (collected list of parameter
 unset(opt_configs) # configs to generate or build (Debug, Release, etc..) (collected list of parameters to -c|--config)
 unset(opt_rm_bin) # --rm-bin was specified
 
+
+macro(handle_opt_target _ho_arg)
+	set(need_build_step 1)
+	list(APPEND opt_targets "${_ho_arg}")
+endmacro()
+
+macro(handle_opt_config _ho_arg)
+	list(APPEND opt_configs "${_ho_arg}")
+endmacro()
+
 # parse CAKE_ARGS
 # also remember the last value of -G and -DCMAKE_BUILD_TYPE options
 unset(last_switch)
