@@ -112,14 +112,20 @@ if(NOT CAKE_PKG_INCLUDED)
   include(CMakeParseArguments)
   
   if(NOT CAKE_PRIVATE_UTILS_INCLUDED)
-    include(${CMAKE_CURRENT_LIST_DIR}/private/CakePrivateUtils.cmake)
+    include(${CAKE_ROOT}/Modules/private/CakePrivateUtils.cmake)
   endif()
 
-  if(NOT CAKE_LOAD_CONFIG_INCLUDED)
-    include(${CMAKE_CURRENT_LIST_DIR}/CakeLoadConfig.cmake)
+  if(NOT CAKE_PROJECT_INCLUDED)
+    include(${CAKE_ROOT}/Modules/private/CakeProject.cmake)
   endif()
 
-  include(${CMAKE_CURRENT_LIST_DIR}/CakePkgDepends.cmake)
+  if(NOT CAKE_PKG_REGISTRIES_INCLUDED)
+    include(${CAKE_ROOT}/Modules/private/CakePkgRegistries.cmake)
+  endif()
+
+  if(NOT CAKE_URL_INCLUDED)
+    include(${CAKE_ROOT}/Modules/private/CakeUrl.cmake)
+  endif()
 
   macro(cake_list_sort_unique_keep_nested_lists listname)
     string(REPLACE "\;" "\t" ${listname} "${${listname}}")
@@ -219,285 +225,7 @@ if(NOT CAKE_PKG_INCLUDED)
     endif()
   endmacro()
 
-  macro(_cake_remove_if_stale pk_var)
-    cake_repo_db_get_field_by_pk(destination "${${pk_var}}")
-    if(NOT EXISTS "${ans}")
-      cake_repo_db_get_field_by_pk(shortcid "${${pk_var}}")
-      set(_cris_shortcid "${ans}")
-      cake_repo_db_erase_by_pk("${${pk_var}}")
-      set(${pk_var} "")
-      # erase binary dirs
-      file(GLOB _cris_g "${CAKE_PKG_BUILD_DIR}/${_cris_shortcid}_*")
-      foreach(_cris_i ${_cris_g})
-        if(IS_DIRECTORY "${_cris_i}")
-          file(REMOVE_RECURSE "${_cris_i}")
-        endif()
-      endforeach()
-    endif()
-  endmacro()
-
-  macro(_cake_need_empty_directory dn)
-    if(EXISTS "${dn}")
-      if(IS_DIRECTORY "${dn}")
-        file(GLOB g "${dn}/*")
-        if(g)
-          set(ans 0) # non-empty dir
-        else()
-          set(ans 1) # empty-dir
-        endif()
-      else()
-        set(ans 0) # existing file
-      endif()
-    endif()
-    file(MAKE_DIRECTORY "${dn}") # does not exist
-    set(ans 1)
-  endmacro()
-
-  # pkg_url is the full, decorated URL (with optional query part to specify key-value pairs)
-  # destination can be empty (= calculate destination under CAKE_PKG_REPOS_DIR)
-  #   or non-empty (= this packaged has been added by a cake_add_subdirectory() call and will be part of the CMake project)
-  # if destination is empty, since the package will not be built as a part of the CMake project (not a subdirectory)
-  # group is the the resolved group (either specified or default)
-  # name is the specified name
-  # returns (ans) the cloned repo's primary key
-  function(_cake_pkg_clone pkg_url destination group name)
-    if(NOT name AND NOT pkg_url)
-      message(FATAL_ERROR "[cake_pkg]: Internal error, neither pkg_url nor name is specified in _cake_pkg_clone.")
-    endif()
-
-    if(name AND CAKE_PKG_URL_OF_${name})
-      #cmake_parse_arguments(ARG "" "URL" "" ${CAKE_PKG_NAME_DB_${name}})
-      #if(ARG_URL)
-      #  set(pkg_url "${ARG_URL}")
-      #endif()
-      set(pkg_url "${CAKE_PKG_URL_OF_${name}}")
-    endif()
-
-    if(pkg_url)
-      cake_parse_pkg_url("${pkg_url}" _ url_cid _ _)
-      cake_repo_db_get_pk_by_field(cid "${url_cid}")
-      set(pk_from_url "${ans}")
-      _cake_remove_if_stale(pk_from_url)
-    else()
-      set(pk_from_url "")
-    endif()
-
-    if(name)
-      cake_repo_db_get_pk_by_field(name "${name}")
-      set(pk_from_name "${ans}")
-      _cake_remove_if_stale(pk_from_name)
-    else()
-      set(pk_from_name "")
-    endif()
-  
-    if(pk_from_name)
-      if(pk_from_url)
-        if(pk_from_name EQUAL pk_from_url)
-          set(pk "${pk_from_name}")
-        else()
-          cake_repo_db_get_field_by_pk("${pk_from_name}" url)
-          set(other_url "${ans}")
-          cake_repo_db_get_field_by_pk("${pk_from_url}" name)
-          set(other_name "${ans}")
-          message(FATAL_ERROR "[cake_pkg] You requested cloning the package ${name} from the url ${pkg_url}.
-            The package ${name} has already been cloned from url ${other_url} and
-            the url ${pkg_url} has already been cloned under the name ${other_name}. Please change
-            either the names of the urls to avoid confusion.")
-        endif()
-      else()
-        set(pk "${pk_from_name}")
-      endif()
-    else()
-      if(pk_from_url)
-        set(pk "${pk_from_url}")
-      else()
-        set(pk "")
-      endif()
-    endif()      
-
-    if(pk)
-      cake_repo_db_get_field_by_pk(destination "${pk}")
-      set(existing_destination "${ans}")
-    else()
-      set(existing_destination "")
-    endif()
-  
-  # following hack is to solve for example "c:/" != "C:/" problems
-  if(destination)
-    get_filename_component(destination "${destination}" ABSOLUTE)
-  endif()
-  if(existing_destination)
-    get_filename_component(existing_destination "${existing_destination}" ABSOLUTE)
-  endif()
-
-    if(existing_destination)
-      # nothing to do, if no explicit destination specified, or it's the same as previous
-    cmake_print_variables(destination existing_destination)
-      if(NOT destination OR destination STREQUAL existing_destination)
-        set(ans "${pk}" PARENT_SCOPE)
-        return()
-      else()
-        message(FATAL_ERROR "[cake_pkg] The repository ${repo_url} has already been cloned to "
-          "${existing_destination}, the current request is to clone it to ${destination}. This sitatuation "
-          "usually comes up when a repository is cloned as an external dependency to an automatic location "
-          "then later you add the same repository as a subdirectory to your project. Possible solution: "
-          "add this repository as subdirectory before all other references to it. You also need to remove "
-          "the current clone manually, either by removing the directory ${existing_destination} or by calling "
-          "'cakepkg REMOVE ...'.")
-      endif()
-    endif()
-
-    if(pkg_url)
-      cake_parse_pkg_url("${pkg_url}" repo_url url_cid options _)
-    else()
-      if(name)
-        message(FATAL_ERROR "[cake_pkg]: Looking up the package name ${name} failed.")
-      else()
-        message(FATAL_ERROR "[cake_pkg]: Internal error, pkg_url or name should be set at this point.")
-      endif()
-    endif()
-
-    cake_get_humanish_part_of_url("${repo_url}")
-    get_filename_component(f "${ans}" NAME)
-    string(RANDOM LENGTH 2 ALPHABET 0123456789 r)
-    set(shortcid "${f}_${r}")
-    
-    if(NOT destination)
-      # last dir of url + random
-      set(resolved_destination ${CAKE_PKG_REPOS_DIR}/${shortcid})
-    else()
-      if(NOT IS_ABSOLUTE "${destination}")
-        message(FATAL_ERROR "[cake_pkg] internal error, destination must be absolute.")
-      endif()
-      if(destination MATCHES "^${CAKE_PKG_REPOS_DIR}/")
-        message(FATAL_ERROR "[cake_pkg] <destination> must not be under ${CAKE_PKG_REPOS_DIR}.")
-      endif()
-      set(resolved_destination "${destination}")
-    endif()
-
-    # clone new repo
-    _cake_need_empty_directory("${resolved_destination}")
-    if(NOT ans)
-      message(FATAL_ERROR "[cake_pkg] About to clone into directory ${resolved_destination} but the directory exists. 
-        Inspect it for possible unsaved changes and remove it manually.")
-    endif()
-
-    # prepare parameters for git clone
-    set(command_line clone)
-    foreach(i ${options})
-      if("${i}" MATCHES "^branch=(.+)$")
-        list(APPEND command_line -b "${CMAKE_MATCH_1}")
-      endif()
-    endforeach()
-    list(APPEND command_line --recursive)
-    if(destination)
-      _cake_get_clone_depth(SUBDIR)
-    else()
-      _cake_get_clone_depth(EXTERN)
-    endif()
-    set(clone_depth "${ans}")
-    if(NOT "${clone_depth}" EQUAL 0)
-      list(APPEND command_line --depth "${clone_depth}" --no-single-branch) # clone at depth but fetch all the branches
-    endif()
-
-    # prepare command line for git clone
-    list(APPEND command_line "${repo_url}" "${resolved_destination}")
-    # git clone
-    _cake_execute_git_command_in_repo("${command_line}" "" res_var)
-
-    if(res_var)
-      message(FATAL_ERROR "[cake_pkg] git clone failed")
-    endif()
-
-    # find out the revision what we've just cloned
-    execute_process(COMMAND ${GIT_EXECUTABLE} symbolic-ref -q --short HEAD
-      WORKING_DIRECTORY ${resolved_destination}
-      OUTPUT_VARIABLE o
-      ERROR_VARIABLE e
-      RESULT_VARIABLE r
-      OUTPUT_STRIP_TRAILING_WHITESPACE)
-    if(r EQUAL 0)
-      # HEAD is a symbolic ref
-      set(branch "${o}")
-    elseif(r EQUAL 1)
-      # detached head
-      execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
-        WORKING_DIRECTORY ${resolved_destination}
-        OUTPUT_VARIABLE o
-        ERROR_VARIABLE e
-        RESULT_VARIABLE r
-        OUTPUT_STRIP_TRAILING_WHITESPACE)
-        if(r)
-          message(FATAL_ERROR "[cake_pkg] 'git rev-parse HEAD' returned ${r} (${e})")
-        else()
-          set(branch "${o}")
-        endif()
-    else()
-      message(FATAL_ERROR "[cake_pkg] 'git symbolic-ref -q --short HEAD' returned ${r} (${e}).")
-    endif()
-
-    cake_repo_db_next_pk()
-
-    set(pk "${ans}")
-
-    cake_repo_db_add_fields(${pk}
-      cid "${url_cid}"
-      url "${repo_url}"
-      group "${group}"
-      name "${name}"
-      destination "${resolved_destination}"
-      branch "${branch}"
-      shortcid "${shortcid}")
-
-    set(ans "${pk}" PARENT_SCOPE)
-
-  endfunction()
-
-  # build_pars_now_var and last_build_pars_var name lists containing items like
-  # COMMIT=02394702394234
-  # -DSOME_PAR=
-  # -DSOME_OTHER_PAR=foo
-  # return result in 'ans'
-  # Build-pars-now are compatible with existing build pars if:
-  # - if the same variable listed in both list, they must be identical
-  # - if a variable is listed in last_build_pars but not build_pars_now (= don't care), it's okay
-  # - if a variable is not listed in last_build_pars but it is on build_pars_now, it's not okay
-  #   reason: the package could be rebuilt with the new, more specific build parameters but
-  #   that would change the already existing and already found targets the rebuilt package export
-  function(_cake_are_build_par_lists_compatible last_build_pars_var build_pars_now_var)
-    # we expect short lists so the N^2 algorithm is fine
-    set(ans 0 PARENT_SCOPE)
-    foreach(i1 ${${build_pars_now_var}})
-      string(REGEX MATCH "^([^=]+)=(.*)$" _ "${i1}")
-      if(NOT CMAKE_MATCH_0)
-        message(FATAL_ERROR "[cake] Build parameter ${i1} is invalid")
-      endif()
-      set(i1_key "${CMAKE_MATCH_1}")
-      set(i1_value "${CMAKE_MATCH_2}")
-      set(i1_key_found 0)
-      foreach(i2 ${${last_build_pars_var}})
-        string(REGEX MATCH "^([^=]+)=(.*)$" _ "${i2}")
-        if(NOT CMAKE_MATCH_0)
-          message(FATAL_ERROR "[cake] Build parameter ${i2} is invalid")
-        endif()
-        set(i2_key "${CMAKE_MATCH_1}")
-        set(i2_value "${CMAKE_MATCH_2}")
-        if(i1_key STREQUAL i2_key)
-          if(i1_key_found)
-            message(FATAL_ERROR "[cake] The build parameter ${i1_key} is found multiple times in another build configuration")
-          endif()
-          set(i1_key_found 1)
-          if(NOT i1_value STREQUAL i2_value)
-            return() # not compatible, differing values
-          endif()
-        endif() # not the same key
-      endforeach() # for each items in last build pars
-      if(NOT i1_key_found)
-        return() # not compatible, a setting in build_pars_now was not specified in last_build_pars
-      endif()
-    endforeach() # for each items in build pars now
-    set(ans 1 PARENT_SCOPE)
-  endfunction()
+  include(${CAKE_ROOT}/Modules/private/CakePkgClone.cmake)
 
   function(cake_repo_db_get_project_title pk)
     cake_repo_db_get_field_by_pk(name "${pk}")
@@ -513,29 +241,21 @@ if(NOT CAKE_PKG_INCLUDED)
   # includes the file 'cake_pkg_depends_file'
   # if that doesn't exist, looks up CAKE_PKG_DEPENDS_* variables and includes those
   # also applies the variables in 'definitions'
-  macro(_cake_include_cake_pkg_depends cake_pkg_depends_file_arg cid name definitions)
+  macro(_cake_include_cake_install_deps cake_pkg_depends_file_arg cid name definitions)
     set(_cake_pkg_depends_file "${cake_pkg_depends_file_arg}")
     set(randomfile "")
     if(NOT EXISTS "${_cake_pkg_depends_file}")
-      set(scriptvarname "")
-      if(DEFINED CAKE_PKG_DEPENDS_URL_${cid})
-        set(scriptvarname "CAKE_PKG_DEPENDS_URL_${cid}")
-      elseif(NOT "${name}" STREQUAL "" AND DEFINED CAKE_PKG_DEPENDS_NAME_${name})
-        set(scriptvarname "CAKE_PKG_DEPENDS_NAME_${name}")
-      else()
-        set(scriptvarname "")
-      endif()
-      if(scriptvarname)
+      if(NOT "${name}" STREQUAL "" AND DEFINED CAKE_PKG_REGISTRY_${name}_CODE)
         string(RANDOM LENGTH 10 randomfile)
-        set(randomfile "${CAKE_PKG_INSTALL_PREFIX}/tmp/cake_pkg_${randomfile}")
-        file(WRITE "${randomfile}" "${${scriptvarname}}")
+        set(randomfile "${CAKE_PROJECT_DIR}/tmp/${name}_install_deps_code_${randomfile}")
+        file(WRITE "${randomfile}" "${CAKE_PKG_REGISTRY_${name}_CODE}")
         set(_cake_pkg_depends_file "${randomfile}")
       endif()
     endif()
   
     if(EXISTS "${_cake_pkg_depends_file}")
-      # execute either the cake-pkg-depends.script
-      # or the script defined in the CAKE_PKG_DEPENDS_* var
+      # execute either the cake-install-deps.script
+      # or the script registered to ${name}
       # The script usually contains cake_pkg(INSTALL ...) calls to
       # fetch and install dependencies
       _cake_apply_definitions("${definitions}")
@@ -548,7 +268,7 @@ if(NOT CAKE_PKG_INCLUDED)
   endmacro()
 
   function(_cake_update_last_build_time shortcid)
-    _cake_get_pkg_configuration_types()
+    _cake_get_project_var(EFFECTIVE CAKE_PKG_CONFIGURATION_TYPES)
     set(configuration_types "${ans}")
 
     foreach(c ${configuration_types})
@@ -562,203 +282,70 @@ if(NOT CAKE_PKG_INCLUDED)
     endforeach()
   endfunction()
 
-  # pk: primary key of entry in repo_db
-  function(_cake_pkg_install pk definitions)
-    cake_repo_db_get_field_by_pk(destination "${pk}")
-    set(destination "${ans}")
-    cake_repo_db_get_field_by_pk(cid "${pk}")
-    set(cid "${ans}")
-    cake_repo_db_get_field_by_pk(shortcid "${pk}")
-    set(shortcid "${ans}")
-    # check if destination is a subdirectory
-    if(CAKE_PKG_${cid}_ADDED_AS_SUBDIRECTORY)
-      cake_message(STATUS "The package ${repo_url} has already been added as subdirectory, skipping installation. "
-        "The consumer of this package (${CMAKE_CURRENT_SOURCE_DIR}) must be prepared to use the package as a target as opposed to"
-        " a package found by find_package() or cake_find_package().")
-      return()
-    endif()
-
-    _cake_execute_git_command_in_repo("log;-1;--pretty=format:%H" "${destination}" repo_sha)
-    set(build_pars_now "")
-    foreach(c ${definitions} ${CAKE_PKG_CMAKE_ARGS})
-      if(c MATCHES "^-D[^=]+=.*$")
-        string(REPLACE ";" "\;" c "${c}")
-        list(APPEND build_pars_now "${c}")
-      endif()
-    endforeach()
-    cake_list_sort_unique_keep_nested_lists(SORT build_pars_now) # canonical ordering
-    set(build_pars_now "COMMIT=${repo_sha}" "${build_pars_now}")
-
-    # if we've already installed this in this session just make sure the
-    # current build settings are compatible with the first time's build settings
-    if(CAKE_PKG_${cid}_TRAVERSED_BY_PKG_INSTALL_NOW)
-      #todo this one should be reimplemented after introducing required definitions
-      #_cake_are_build_par_lists_compatible(CAKE_PKG_${cid}_LAST_BUILD_PARS build_pars_now)
-      set(ans 1)
-      if(NOT ans)
-        cmake_print_variables(last_build_pars build_pars_now)
-        message(FATAL_ERROR "[cake] The package ${pkg_url} has just been installed and now "
-          "another package triggered the installation with different build parameters. "
-          "Solution: make sure all packages having a shared dependency specify the same build "
-          "settings (defines) for the dependency.")
-      else()
-        _cake_update_last_build_time("${shortcid}")
-        return()
-      endif()
-    endif()
-
-    cake_set_session_var(CAKE_PKG_${cid}_TRAVERSED_BY_PKG_INSTALL_NOW 1)
-    cake_set_session_var(CAKE_PKG_${cid}_LAST_BUILD_PARS "${build_pars_now}")
-
-    # execute the repo's cake-pkg-depends.cmake script, if exists
-    # otherwise try to execute the dependency script in CAKE_PKG_DEPENDS_<name> or CAKE_PKG_DEPENDS_<urlcid>
-
-    cake_repo_db_get_field_by_pk(name "${pk}")
-    set(name "${ans}")
-
-    set(CAKE_LAST_BUILD_TIME_SAVED "${CAKE_LAST_BUILD_TIME}")
-    cake_set_session_var(CAKE_LAST_BUILD_TIME "")
-
-    _cake_include_cake_pkg_depends(
-      "${destination}/cake-pkg-depends.cmake"
-      "${cid}" "${name}" "${definitions}")
-
-    set(dependencies_last_build_time "${CAKE_LAST_BUILD_TIME}")
-    cake_set_session_var(CAKE_LAST_BUILD_TIME "${CAKE_LAST_BUILD_TIME_SAVED}")
-
-    # now configure and build the install target of this package with cmake
-    _cake_get_pkg_configuration_types()
-    set(configuration_types "${ans}")
-
-    cake_repo_db_get_project_title("${pk}")
-    set(project_title "${ans}")
-
-    foreach(c ${configuration_types})
-      # read pars of last build (install)
-      set(last_build_pars_path ${CAKE_PKG_BUILD_DIR}/${shortcid}_${c}/cake_pkg_last_build_pars.txt)
-      set(last_build_pars "")
-      if(EXISTS "${last_build_pars_path}")
-        file(TIMESTAMP "${last_build_pars_path}" last_build_time UTC)
-        file(STRINGS "${last_build_pars_path}" last_build_pars) # reads semicolons as backslash+semicolon, that's good
-      else()
-        set(last_build_pars "COMMIT=")
-        set(last_build_time "")
-      endif()
-
-      if(
-        (NOT dependencies_last_build_time STRLESS last_build_time) OR
-        (NOT last_build_pars STREQUAL build_pars_now) # last install is non-existent or outdated
-      )
-        cake_message(STATUS "Building the install target (${c}) for package ${project_title}")
-
-        # remove pars from last build
-        set(unset_definitions "")
-        foreach(i ${last_build_pars})
-          if(i MATCHES "^-D([^=]+)=.*$")
-            set(varname "${CMAKE_MATCH_1}")
-            # check if this variable is not set
-            set(found 0)
-            foreach(j ${build_pars_now})
-              if(j MATCHES "^-D([^=]+)=.*$")
-                if(CMAKE_MATCH_1 STREQUAL varname)
-                  set(found 1)
-                  break()
-                endif()
-              endif()
-            endforeach()
-            if(NOT found)
-              list(APPEND unset_definitions "-U${varname}")
-            endif()
-          endif()
-        endforeach()
-
-        string(RANDOM LENGTH 10 randomfile)
-        set(randomfile "${CAKE_PKG_INSTALL_PREFIX}/tmp/cake_pkg_${randomfile}.cmake")
-        set(f "")
-        foreach(v CAKE_PKG_CONFIGURATION_TYPES CAKE_PKG_CMAKE_ARGS CAKE_PKG_CMAKE_NATIVE_TOOL_ARGS CAKE_PKG_CLONE_DEPTH)
-          if(DEFINED ${v})
-            set(f "${f}\nset(${v} \"${${v}}\")") # works fine if ${v} contains nested list
-          endif()
-        endforeach()
-        file(WRITE "${randomfile}" "${f}")
-        # call cmake configure
-        set(binary_dir ${CAKE_PKG_BUILD_DIR}/${shortcid}_${c})
-        set(command_line
-            "-DCMAKE_BUILD_TYPE=${c}"
-            "-DCAKE_ROOT=${CAKE_ROOT}"
-            "${CAKE_PKG_CMAKE_ARGS}"
-            "${unset_definitions}"
-            "${definitions}"
-            "-DCAKE_PKG_LOAD_THE_SESSION_VARS=1"
-            "-DCAKE_PKG_CONFIG_VARS_FILE=${randomfile}"
-            "${destination}"
-        )
-
-        cake_message(STATUS "cd ${binary_dir}")
-        cake_list_to_command_line_like_string(s "${command_line}")
-        cake_message(STATUS "cmake ${s}")
-        file(MAKE_DIRECTORY "${binary_dir}")
-        execute_process(COMMAND ${CMAKE_COMMAND} ${command_line}
-          RESULT_VARIABLE res_var
-          WORKING_DIRECTORY "${binary_dir}")
-        file(REMOVE "${randomfile}")
-        if(res_var)
-          message(FATAL_ERROR "[cake] CMake configuration failed, check the previous lines for the actual error.")
-        endif()
-
-        # call cmake build
-        set(command_line --build "${binary_dir}" --target install --config ${c} -- ${CAKE_PKG_CMAKE_NATIVE_TOOL_ARGS})
-        cake_list_to_command_line_like_string(s "${command_line}")
-        cake_message(STATUS "cmake ${s}")
-        execute_process(COMMAND ${CMAKE_COMMAND} ${command_line} RESULT_VARIABLE res_var)
-        if(res_var)
-          message(FATAL_ERROR "[cake] CMake build failed, check the previous lines for the actual error.")
-        endif()
-
-        # update last build pars
-        set(s "")
-        foreach(i ${build_pars_now})
-          set(s "${s}${i}\n")
-        endforeach()
-        file(WRITE "${last_build_pars_path}" "${s}")
-      else()
-        cake_message(STATUS "Configuration '${c}' already installed from commit ${repo_sha} with same definitions, skipping build.")
-      endif()
-    endforeach()
-
-    _cake_update_last_build_time("${shortcid}")
-
-  endfunction()
-
+  include(${CAKE_ROOT}/Modules/private/CakePkgInstall.cmake)
+  
 # CAKE_PKG_REGISTRY_<NAME> = URL [DEFINITIONS]
 # CLONE:
-# - CLONE URL [DESTINATION] [NAME] [GROUPS]
-# - CLONE NAME [DESTINATION] [GROUPS]
+# - CLONE URL [DESTINATION] [NAME] [GROUP]
+# - CLONE NAME [DESTINATION] [GROUP]
 # INSTALL single:
 # - INSTALL URL [DESTINATION] [NAME] [GROUPS] [DEFINITIONS]
 # - INSTALL NAME [DESTINATION] [GROUPS] [DEFINITIONS]
-# INSTALL batch:
-# - INSTALL ALL^(GROUPS|IF)
-# REPORT single:
-# - STATUS|DIFFLOG|COMMAND|CMDC|SHC NAME
 # REPORT batch:
-# - STATUS|DIFFLOG|COMMAND|CMDC|SHC ALL^(GROUPS|IF)
+# - STATUS|DIFFLOG|COMMAND|CMDC|SHC
 # REMOVE single
-# - REMOVE NAME|(ALL^(GROUPS|IF))
-# - LIST NAME|(ALL^(GROUPS|IF))
+# - REMOVE NAME
+# - LIST NAME
 
-  function(cake_pkg)
+  function(cake_pkg ARG_C)
 
-    set(option_commands CLONE INSTALL STATUS DIFFLOG REMOVE LIST)
-    set(mv_commands COMMAND CMDC SHC)
-    set(all_commands ${option_commands} ${mv_commands})
+    set(option_args "")
+    set(sv_args "")
+    set(mv_args "")
 
-    set(sv_args URL DESTINATION NAME GROUP PK_OUT)
-    set(mv_args ${mv_commands} IF DEFINITIONS GROUPS)
+    string(REPLACE "\;" "\t" argv "${ARGN}") # needed to keep nested lists
 
-    string(REPLACE "\;" "\t" argv "${ARGV}") # needed to keep nested lists
+    # prepend argv with NAME if first item is not a keyword
+    macro(_cake_fix_name)
+      if(argv)
+        set(all_args ${option_args} ${sv_args} ${mv_args})
+        list(GET argv 0 head)
+        list(FIND all_args "${head}" idx)
+        if(idx EQUAL -1)
+          # the first item in ARGN (= the second arg) is not a keyword, it musts be a NAME
+          list(INSERT argv 0 "NAME")
+        endif()
+      endif()
+    endmacro()
+
+    if(ARG_C MATCHES "^CLONE$")
+      set(sv_args URL DESTINATION NAME GROUP PK_OUT BRANCH)
+      _cake_fix_name()
+    elseif(ARG_C MATCHES "^INSTALL$")
+      set(sv_args URL DESTINATION NAME GROUP PK_OUT BRANCH)
+      set(mv_args DEFINITIONS)
+      _cake_fix_name()
+    elseif(ARG_C MATCHES "^STATUS$")
+      set(mv_args "GROUPS")
+    elseif(ARG_C MATCHES "^DIFFLOG$")
+      set(mv_args "GROUPS")
+    elseif(ARG_C MATCHES "^COMMAND|CMDC|SHC$")
+      set(mv_args ${ARG_C} GROUPS)
+      list(INSERT argv 0 ${ARG_C}) # put back so we can still use cmake_parse_arguments to multi-arg-parse the COMMAND|CMDC|SHC
+    elseif(ARG_C MATCHES "^REMOVE$")
+      _cake_fix_name()
+    elseif(ARG_C MATCHES "^LIST$")
+      set(mv_args "GROUPS")
+      _cake_fix_name()
+    elseif(ARG_C MATCHES "^REGISTER$")
+      set(sv_args URL CODE NAME)
+      _cake_fix_name()
+    else()
+      message(FATAL_ERROR "[cake] First argument must be one of these: CLONE, INSTALL, STATUS, DIFFLOG, COMMAND, CMDC, SHC, REMOVE, LIST.")
+    endif()
+
     cmake_parse_arguments(ARG
-      "${option_commands}"
+      "${option_args}"
       "${sv_args}"
       "${mv_args}"
       "${argv}")
@@ -768,51 +355,71 @@ if(NOT CAKE_PKG_INCLUDED)
       string(REPLACE "\t" "\;" ARG_${i} "${ARG_${i}}")
     endforeach()
 
-    set(count 0)
-    foreach(c ${all_commands})
-      if(ARG_${c})
-        math(EXPR count "${count}+1")
-      endif()
-    endforeach()
-    if(count EQUAL 0 OR count GREATER 1)
-      string(REPLACE \; ", " s "${all_commands}")
-      message(FATAL_ERROR "[cake_pkg] Exactly one of these options must be specified: ${s}")
-    endif()
 
-    # make ARG_DESTINATION absolute
-    if(NOT ("${ARG_DESTINATION}" STREQUAL "") AND NOT IS_ABSOLUTE "${ARG_DESTINATION}")
-      if(DEFINED CMAKE_SCRIPT_MODE_FILE)
-        message(FATAL_ERROR "[cake_pkg] In script mode <destination-dir> must be absolute path.")
+    if(ARG_C MATCHES "^CLONE|INSTALL$")
+      # Project files may contain dynamic elements
+      # that depend on CMake/environment variables that may
+      # have changed since we first loaded the project settings,
+      # so we re-read project settings before
+      # executing the project-settings sensitive CLONE/INSTALL
+      # operations.
+      # Other operations depend only of CAKE_PROJECT_DIR which
+      # cannot be changed on-the-fly.
+      _cake_load_project_settings()
+      
+      if(NOT CAKE_PKG_BUILD_DIR)
+        message(FATAL_ERROR "[cake] Internal error, CAKE_PKG_BUILD_DIR must not be empty.")
+      endif()
+
+      # make ARG_DESTINATION absolute
+      if(ARG_DESTINATION)
+        if(NOT IS_ABSOLUTE "${ARG_DESTINATION}")
+          if(DEFINED CMAKE_SCRIPT_MODE_FILE)
+            message(FATAL_ERROR "[cake_pkg] In script mode <destination-dir> must be absolute path.")
+          else()
+            get_filename_component(ARG_DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/${ARG_DESTINATION}" ABSOLUTE)
+          endif()
+        endif()
       else()
-        get_filename_component(ARG_DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/${ARG_DESTINATION}")
+        _cake_get_project_var(EFFECTIVE CAKE_PKG_PROJECT_DIR)
+        set(pkg_project_dir "${ans}")
+        if(pkg_project_dir)
+          if(NOT IS_DIRECTORY "${pkg_project_dir}")
+            message(FATAL_ERROR "[cake] CAKE_PKG_PROJECT_DIR: \"${pkg_project_dir}\" does not exist.")
+          endif()
+          # cake_pkg INSTALL/CLONE without DESTINATION and alternative pkg_project dir defined ->
+          # forward entire call to child process launched in other project dir
+          message(STATUS "[cake] Execute cake_pkg in CAKE_PKG_PROJECT_DIR (\"${pkg_project_dir}\").")
+          cake_save_session_vars()
+          execute_process(
+            COMMAND ${CMAKE_COMMAND}
+              "-DCAKE_CURRENT_DIRECTORY=${pkg_project_dir}"
+              "-DCAKE_PROJECT_DIR=${pkg_project_dir}"
+              "-DCAKE_PKG_LOAD_THE_SESSION_VARS=${CAKE_PKG_SESSION_VARS_FILE}"
+              -P "${CAKE_ROOT}/cakepkg-src/cakepkg.cmake"
+              ${ARGV}
+            WORKING_DIRECTORY "${pkg_project_dir}"
+            RESULT_VARIABLE r)
+          if(r)
+            message(FATAL_ERROR "[cake] cake_pkg failed in CAKE_PKG_PROJECT_DIR (\"${pkg_project_dir}\").")
+          endif()
+          return()
+        endif()
       endif()
-    endif()
 
-    if(ARG_GROUP)
-      set(group "${ARG_GROUP}")
-    else()
-      set(group "_ungrouped_")
-    endif()
+      _cake_load_pkg_registries()
+      if(ARG_GROUP)
+        set(group "${ARG_GROUP}")
+      else()
+        set(group "_ungrouped_")
+      endif()
+      if(NOT (ARG_NAME OR ARG_URL))
+        message(FATAL_ERROR "[cake_pkg] Either URL or NAME (or both) must be specified.")
+      endif()
+      if(ARG_PK_OUT)
+        set(${ARG_PK_OUT} "" PARENT_SCOPE)
+      endif()
 
-    if((NOT ARG_NAME AND NOT ARG_URL) AND (ARG_CLONE OR ARG_INSTALL))
-      message(FATAL_ERROR "[cake_pkg] Either URL or NAME (or both) must be specified.")
-    endif()
-
-    if(ARG_PK_OUT)
-      set(${ARG_PK_OUT} "" PARENT_SCOPE)
-    endif()
-
-    if(ARG_CLONE OR ARG_INSTALL)
-      # something like this should be considered:
-      # skip entire cake_pkg(INSTALL/CLONE) if find_package already works
-      # not sure how to do it not to make any suprises
-      #if(ARG_NAME)
-      #  find_package(${ARG_NAME} QUIET)
-      #  string(TOUPPER "${ARG_NAME}" u)
-      #  if(${ARG_NAME}_FOUND OR ${u}_FOUND)
-      #    return()
-      #  endif()
-      #endif()
       if(ARG_URL)
         cake_parse_pkg_url("${ARG_URL}" repo_url repo_cid repo_options repo_definitions)
       else()
@@ -821,167 +428,178 @@ if(NOT CAKE_PKG_INCLUDED)
         set(repo_options "")
         set(repo_definitions "")
       endif()
-      _cake_pkg_clone("${ARG_URL}" "${ARG_DESTINATION}" "${group}" "${ARG_NAME}")
+      _cake_pkg_clone("${ARG_URL}" "${ARG_DESTINATION}" "${group}" "${ARG_NAME}" "${ARG_BRANCH}")
       set(pk "${ans}")
-      if(ARG_INSTALL)
+      if(ARG_C MATCHES "^INSTALL$")
         set(defs "${repo_definitions}" "${ARG_DEFINITIONS}")
         _cake_pkg_install("${pk}" "${defs}")
       endif()
       if(ARG_PK_OUT)
         set(${ARG_PK_OUT} "${pk}" PARENT_SCOPE)
       endif()
-    elseif(ARG_STATUS OR ARG_DIFFLOG OR ARG_COMMAND OR ARG_CMDC OR ARG_SHC OR ARG_LIST)
-      if(ARG_NAME)
-        message(FATAL_ERROR "[cake_pkg] this option is not implemented")
+    elseif(ARG_C MATCHES "^STATUS|DIFFLOG|COMMAND|CMDC|SHC|LIST$")
+      # batch report
+      set(command "")
+      if(ARG_COMMAND)
+        set(command ${ARG_COMMAND})
+      elseif(ARG_CMDC)
+        set(command cmd /c ${ARG_CMDC})
+      elseif(ARG_SHC)
+        string(REPLACE \; " " v "${ARG_SHC}")
+        set(command sh -c "${v}")
+      elseif(ARG_C STREQUAL "STATUS" OR ARG_C STREQUAL "DIFFLOG" OR ARG_C STREQUAL "LIST")
+        # nothing to do
       else()
-        # batch report
-        set(command "")
-        if(ARG_COMMAND)
-          set(command ${ARG_COMMAND})
-        elseif(ARG_CMDC)
-          set(command cmd /c ${ARG_CMDC})
-        elseif(ARG_SHC)
-          string(REPLACE \; " " v "${ARG_SHC}")
-          set(command sh -c "${v}")
-        elseif(ARG_STATUS OR ARG_DIFFLOG OR ARG_LIST)
-          # nothing to do
-        else()
-          message(FATAL_ERROR "[cake_pkg] internal error while assembling command")
-        endif()
-        string(REGEX MATCHALL "\t[0-9]+cid=" pks "${CAKE_REPO_DB}")
-        string(REGEX MATCHALL "[0-9]+" pks "${pks}")
-        cake_list_to_command_line_like_string(s "${command}")
-        list(APPEND ARG_GROUPS "${ARG_GROUP}")
-        foreach(pk ${pks})
-          set(needed 1)
-          cake_repo_db_get_field_by_pk(group "${pk}")
-          set(group "${ans}")
-          if(ARG_GROUPS)
-            list(FIND ARG_GROUPS "${group}" gidx)
-            if(gidx LESS 0)
-              set(needed 0)
-            endif()
+        message(FATAL_ERROR "[cake_pkg] internal error while assembling command")
+      endif()
+      string(REGEX MATCHALL "\t[0-9]+cid=" pks "${CAKE_REPO_DB}")
+      string(REGEX MATCHALL "[0-9]+" pks "${pks}")
+      cake_list_to_command_line_like_string(s "${command}")
+      foreach(pk ${pks})
+        set(needed 1)
+        cake_repo_db_get_field_by_pk(group "${pk}")
+        set(group "${ans}")
+        if(ARG_GROUPS)
+          list(FIND ARG_GROUPS "${group}" gidx)
+          if(gidx LESS 0)
+            set(needed 0)
           endif()
-          if(needed)
-            cake_repo_db_get_field_by_pk(destination "${pk}")
-            set(destination "${ans}")
-            cake_repo_db_get_field_by_pk(branch "${pk}")
-            set(branch "${ans}")
-            cake_repo_db_get_project_title("${pk}")
-            set(title "${ans}")
-            if(CMAKE_SCRIPT_MODE_FILE AND CAKE_CURRENT_DIRECTORY)
-              file(RELATIVE_PATH relpath "${CAKE_CURRENT_DIRECTORY}" "${destination}")
-            else()
-              set(relpath "${destination}")
+        endif()
+        if(needed)
+          cake_repo_db_get_field_by_pk(destination "${pk}")
+          set(destination "${ans}")
+          cake_repo_db_get_field_by_pk(branch "${pk}")
+          set(branch "${ans}")
+          cake_repo_db_get_project_title("${pk}")
+          set(title "${ans}")
+          if(CMAKE_SCRIPT_MODE_FILE AND CAKE_CURRENT_DIRECTORY)
+            file(RELATIVE_PATH relpath "${CAKE_CURRENT_DIRECTORY}" "${destination}")
+            if(relpath STREQUAL "")
+              set(relpath "<current directory>")
             endif()
-            if(command)
-              message(STATUS "cd ${destination}")
-              execute_process(COMMAND ${command}
-                WORKING_DIRECTORY "${destination}"
-                RESULT_VARIABLE r)
-              if(r)
-                message(FATAL_ERROR "[cake_pkg] Result: ${r}")
-              endif()
-            elseif(ARG_LIST)
-              cake_repo_db_get_field_by_pk(name "${pk}")
-              set(name "${ans}")
-              cake_repo_db_get_field_by_pk(url "${pk}")
-              set(url "${ans}")
-              if(name)
-                set(s "[${name}] ")
-              else()
+          else()
+            set(relpath "${destination}")
+          endif()
+          set(header "${title}: ${relpath}")
+          if(command)
+            message(STATUS "cd ${destination}")
+            execute_process(COMMAND ${command}
+              WORKING_DIRECTORY "${destination}"
+              RESULT_VARIABLE r)
+            if(r)
+              message(FATAL_ERROR "[cake_pkg] Result: ${r}")
+            endif()
+          elseif(ARG_C STREQUAL "LIST")
+            cake_repo_db_get_field_by_pk(name "${pk}")
+            set(name "${ans}")
+            cake_repo_db_get_field_by_pk(url "${pk}")
+            set(url "${ans}")
+            if(name)
+              set(s "[${name}] ")
+            else()
+              set(s "")
+            endif()
+            set(s "${s}group: ${group}, branch: ${branch}")
+            message("")
+            message(STATUS "${url}")
+            message("\t${s}")
+            message("\tpath: ${destination}")
+          elseif(ARG_C STREQUAL "STATUS" OR ARG_C STREQUAL "DIFFLOG")
+            execute_process(COMMAND ${GIT_EXECUTABLE} status -s
+              WORKING_DIRECTORY "${destination}"
+              OUTPUT_VARIABLE o_gs
+              ERROR_VARIABLE e
+              RESULT_VARIABLE r)
+            if(r)
+              message(FATAL_ERROR "[cake_pkg] 'git status -s' failed: ${r} (${e})")
+            endif()
+            execute_process(COMMAND ${GIT_EXECUTABLE} log --oneline origin/${branch}..HEAD
+              WORKING_DIRECTORY "${destination}"
+              OUTPUT_VARIABLE o_before
+              ERROR_VARIABLE e
+              RESULT_VARIABLE r)
+            if(r)
+              message(FATAL_ERROR "[cake_pkg] 'git log --oneline origin/${branch}..HEAD' failed: ${r} (${e})")
+            endif()
+            execute_process(COMMAND ${GIT_EXECUTABLE} log --oneline HEAD..origin/${branch}
+              WORKING_DIRECTORY "${destination}"
+              OUTPUT_VARIABLE o_behind
+              ERROR_VARIABLE e
+              RESULT_VARIABLE r)
+            if(r)
+              message(FATAL_ERROR "[cake_pkg] 'git log --oneline HEAD..origin/${branch}' failed: ${r} (${e})")
+            endif()
+            string(REGEX REPLACE "[^\n]" "" o_before "${o_before}")
+            string(REGEX REPLACE "[^\n]" "" o_behind "${o_behind}")
+            string(LENGTH "${o_before}" o_before)
+            string(LENGTH "${o_behind}" o_behind)
+            if(ARG_C STREQUAL "STATUS")
+              if(NOT o_before EQUAL 0 OR NOT o_behind EQUAL 0 OR o_gs)
                 set(s "")
-              endif()
-              set(s "${s}group: ${group}, branch: ${branch}")
-              message("")
-              message(STATUS "${url}")
-              message("\t${s}")
-              message("\tpath: ${destination}")
-            elseif(ARG_STATUS OR ARG_DIFFLOG)
-              execute_process(COMMAND ${GIT_EXECUTABLE} status -s
-                WORKING_DIRECTORY "${destination}"
-                OUTPUT_VARIABLE o_gs
-                ERROR_VARIABLE e
-                RESULT_VARIABLE r)
-              if(r)
-                message(FATAL_ERROR "[cake_pkg] 'git status -s' failed: ${r} (${e})")
-              endif()
-              execute_process(COMMAND ${GIT_EXECUTABLE} log --oneline origin/${branch}..HEAD
-                WORKING_DIRECTORY "${destination}"
-                OUTPUT_VARIABLE o_before
-                ERROR_VARIABLE e
-                RESULT_VARIABLE r)
-              if(r)
-                message(FATAL_ERROR "[cake_pkg] 'git log --oneline origin/${branch}..HEAD' failed: ${r} (${e})")
-              endif()
-              execute_process(COMMAND ${GIT_EXECUTABLE} log --oneline HEAD..origin/${branch}
-                WORKING_DIRECTORY "${destination}"
-                OUTPUT_VARIABLE o_behind
-                ERROR_VARIABLE e
-                RESULT_VARIABLE r)
-              if(r)
-                message(FATAL_ERROR "[cake_pkg] 'git log --oneline HEAD..origin/${branch}' failed: ${r} (${e})")
-              endif()
-              string(REGEX REPLACE "[^\n]" "" o_before "${o_before}")
-              string(REGEX REPLACE "[^\n]" "" o_behind "${o_behind}")
-              string(LENGTH "${o_before}" o_before)
-              string(LENGTH "${o_behind}" o_behind)
-              if(ARG_STATUS)
-                if(NOT o_before EQUAL 0 OR NOT o_behind EQUAL 0 OR o_gs)
-                  set(s "")
-                  if(o_before EQUAL 0 AND o_behind EQUAL 0)
-                    set(s "up to date with origin/${branch}")
+                if(o_before EQUAL 0 AND o_behind EQUAL 0)
+                  set(s "up to date with origin/${branch}")
+                else()
+                  if(o_before EQUAL 0)
+                    set(s "${o_behind} to pull from")
+                  elseif(o_behind EQUAL 0)
+                    set(s "${o_before} to push to")
                   else()
-                    if(o_before EQUAL 0)
-                      set(s "${o_behind} to pull from")
-                    elseif(o_behind EQUAL 0)
-                      set(s "${o_before} to push to")
-                    else()
-                      set(s "diverged (-${o_behind}/+${o_before}) from")
-                    endif()
-                    set(s "${s} origin/${branch}")
+                    set(s "diverged (-${o_behind}/+${o_before}) from")
                   endif()
-                  if(o_gs)
-                    set(s "${s} + local changes")
-                  endif()
-                  message("")
-                  message(STATUS "${relpath}")
-                  message("\t${s}")
-                  execute_process(COMMAND ${GIT_EXECUTABLE} status -sb
+                  set(s "${s} origin/${branch}")
+                endif()
+                if(o_gs)
+                  set(s "${s} + local changes")
+                endif()
+                message("")
+                message(STATUS "${header}")
+                message("\t${s}")
+                execute_process(COMMAND ${GIT_EXECUTABLE} status -sb
+                  WORKING_DIRECTORY ${destination}
+                  RESULT_VARIABLE r)
+                if(r)
+                  message(FATAL_ERROR "[cake_pkg] 'git status -sb' returned ${r} (${e})")
+                endif()
+              endif()
+            else()
+              # DIFFLOG
+              if(NOT o_before EQUAL 0 OR NOT o_behind EQUAL 0)
+                message("")
+                message(STATUS "${header}")
+                if(NOT o_behind EQUAL 0)
+                  message("\t${o_behind} to pull from [origin/${branch}]:")
+                  execute_process(COMMAND ${GIT_EXECUTABLE} log --oneline HEAD..origin/${branch}
                     WORKING_DIRECTORY ${destination}
                     RESULT_VARIABLE r)
                   if(r)
-                    message(FATAL_ERROR "[cake_pkg] 'git status -sb' returned ${r} (${e})")
+                    message(FATAL_ERROR "[cake_pkg] 'git log --oneline HEAD..origin/${branch}' returned ${r} (${e})")
                   endif()
                 endif()
-              else()
-                # DIFFLOG
-                if(NOT o_before EQUAL 0 OR NOT o_behind EQUAL 0)
-                  message("")
-                  message(STATUS "${relpath}")
-                  if(NOT o_behind EQUAL 0)
-                    message("\t${o_behind} to pull from [origin/${branch}]:")
-                    execute_process(COMMAND ${GIT_EXECUTABLE} log --oneline HEAD..origin/${branch}
-                      WORKING_DIRECTORY ${destination}
-                      RESULT_VARIABLE r)
-                    if(r)
-                      message(FATAL_ERROR "[cake_pkg] 'git log --oneline HEAD..origin/${branch}' returned ${r} (${e})")
-                    endif()
-                  endif()
-                  if(NOT o_before EQUAL 0)
-                    message("\t${o_before} to push to origin/${branch}:")
-                    execute_process(COMMAND ${GIT_EXECUTABLE} log --oneline origin/${branch}..HEAD
-                      WORKING_DIRECTORY ${destination}
-                      RESULT_VARIABLE r)
-                    if(r)
-                      message(FATAL_ERROR "[cake_pkg] 'git log --oneline origin/${branch}..HEAD' returned ${r} (${e})")
-                    endif()
+                if(NOT o_before EQUAL 0)
+                  message("\t${o_before} to push to origin/${branch}:")
+                  execute_process(COMMAND ${GIT_EXECUTABLE} log --oneline origin/${branch}..HEAD
+                    WORKING_DIRECTORY ${destination}
+                    RESULT_VARIABLE r)
+                  if(r)
+                    message(FATAL_ERROR "[cake_pkg] 'git log --oneline origin/${branch}..HEAD' returned ${r} (${e})")
                   endif()
                 endif()
               endif()
             endif()
           endif()
-        endforeach()
+        endif()
+      endforeach()
+    elseif(ARG_C STREQUAL "REMOVE")
+      message(FATAL_ERROR "[cake] REMOVE is not implemented.")
+    elseif(ARG_C STREQUAL "REGISTER")
+      if(NOT ARG_NAME)
+        message(FATAL_ERROR "[cake] cake_pkg(REGISTER ...) missing NAME argument.")
+      endif()
+      if(ARG_URL AND NOT DEFINED CAKE_PKG_REGISTRY_${ARG_NAME}_URL)
+        set(CAKE_PKG_REGISTRY_${ARG_NAME}_URL "${ARG_URL}" CACHE INTERNAL "")
+      endif()
+      if(ARG_CODE AND NOT DEFINED CAKE_PKG_REGISTRY_${ARG_NAME}_CODE)
+        set(CAKE_PKG_REGISTRY_${ARG_NAME}_CODE "${ARG_CODE}" CACHE INTERNAL "")
       endif()
     else()
       message(FATAL_ERROR "[cake_pkg] internal error in arg parsing")
@@ -995,9 +613,6 @@ if(NOT CAKE_PKG_INCLUDED)
   if(CAKE_PKG_UPDATE_NOW)
     cake_set_session_var(CAKE_PKG_UPDATE_NOW 1)
   endif()
-
-  set(CAKE_PKG_REPOS_DIR ${CAKE_PKG_INSTALL_PREFIX}/src)
-  set(CAKE_PKG_BUILD_DIR ${CAKE_PKG_INSTALL_PREFIX}/build)
 
   include(${CMAKE_CURRENT_LIST_DIR}/private/CakeRepoDb.cmake)
 

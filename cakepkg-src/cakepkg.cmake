@@ -47,4 +47,4 @@ foreach(i RANGE ${first_arg_idx} ${last_arg_idx})
   list(APPEND CAKE_PKG_ARGS "${j}")
 endforeach()
 
-cake_pkg("${CAKE_PKG_ARGS}")
+cake_pkg(${CAKE_PKG_ARGS})

@@ -1,31 +1,47 @@
-#     cake [options] <cmake-source-dir>|<cmake-binary-dir>
+#     cake [options] <cmake-source-dir>
 #
-# You can specify either <cmake-source-dir> or <cmake-binary dir>
-# or both. If you specify <cmake-source-dir> only then the <cmake-binary-dir>
-# will be automatically determined from the CAKE_BINARY_DIR_PREFIX
-# environment variable. Alternatively you can specify this and
-# other Cake configuration variable in the file given in the CAKE_FThe cmake-source-dir must contain CMakeLists.txt. 
+# The `cake` command applies the project settings specified in the Cake
+# project file (``cake-project.cmake``) then executes one of the
+# following operations:
 #
-# If no cmake-binary-dir is given then the Cake configuration variable
-# CAKE_BINARY_DIR_PREFIX controls the location of the cmake-binary-dir.
-# In that case the last component of the cake-source-dir path will be
-# appended to the value of CAKE_BINARY_DIR_PREFIX.
-# If no CAKE_BINARY_DIR_PREFIX is set in the configuration file or environment
-# variable then the binary dir will be created in the system temporary dir.
-# For more information about the Cake configuration variables see Modules/CakeLoadConfig.cmake
+# - calls `cmake` configuration or build steps
+# - launches `cmake-gui` or the IDE
 #
-# [options] can be either the standard CMake configuration options (see cmake documentation)
+# The `cake` commands accepts most of the options `cake` accepts so
+# you can use `cake` as a drop-in replacement of `cmake`.
+# One important difference is that you don't need to specify the binary
+# directory, it will be created to an automatic location,
+# see the CAKE_BINARY_DIR_PREFIX variable below.
+#
+# The Cake scripts also implement a lightweight package and repository manager.
+# It provides support to download and install packages (libraries), manage
+# the dependencies and the repositories.
+# Certain project settings control the package manager functionality.
+# For more information see the documentation for the `cake_pkg` command.
+#
+# Options
+# =======
+#
+# [options] can be either the standard CMake configuration options (see CMake documentation)
 # or Cake-specific options.
 #
-# Cmake configuration options:
+# CMake configuration options accepted:
 #
 #     -C <initial-cache>
 #     -D <var>[:<type>]=<value>
 #     -U <globbing-expr>
 #     -G <generator-name>
 #     -T <toolset-name>
+#     -A <platform-name>
 #     -W[no-]dev
 #     -N
+#     --debug-trycompile
+#     --debug-output
+#     --trace
+#     --warn-uninitialized
+#     --warn-unused-vars
+#     --no-warn-unused-cli
+#     --check-system-vars
 #
 # Note: all parametrized options can also be written in one word,
 # without space-separator: '-D key=val' and '-Dkey=val'
@@ -33,16 +49,16 @@
 # Cake-specific options for the generator step:
 #
 #     --rm-bin
-#         remove the binary dir before calling cmake
+#         remove the binary dir before calling `cmake`
 #     -c <cfg>, --config <cfg>
 #         specifies which configuration to generate
-#         (for single-config generators like make)
+#         (for single-config generators like `make`)
 #         or which opt_configs to build (for multi-config
-#         generators like XCode)
+#         generators like `XCode`)
 #         <cfg> is one of Debug, Release, ReleaseWithDebInfo, MinSizeRel
 #         You can also specify multiple opt_configs:
 #         -c Release -c ReleaseWithDebInfo
-#     -R, debug-release
+#     -R, --debug-release
 #         same as -c Debug -c Release
 #     --ide
 #         open the project in the IDE (currently Xcode or Visual Studio)
@@ -63,21 +79,105 @@
 #         shortcut for --target=install
 #     --clean-first
 #     --use-stderr
-#     --
+#     -- <native-tool-options>
 #         see cmake --build docs
-#         note: you need to specify either -b or -t
+#         note: to build you need to specify either -b or -t
 #
 # Note: all parametrized options can be written in one word,
 # without space space-separator: '-t mytarget' and '-tmytarget'.
 # The long form can be written with space instead of '=':
 # '--target mytarget' and '--target=mytarget'
+#
+# Cake project file
+# =====================
+#
+# You need to specify project settings in a ``cake-project.cmake``
+# file or use the default project settings.
+# Certain project settings (like CMAKE_INSTALL_PREFIX) can also be
+# specified on the command line. The command line takes precedence in
+# those cases.
+#
+# The ``cake-project.cmake`` file is searched in the current directory
+# and above.
+# If the CAKE_PROJECT_DIR environment variable is set it will be
+# considered as project directory even if there's no ``cake-project.cmake``
+# file in that directory. The default values will be used for
+# all project settings.
+# 
+# After loading ``cake-project.cmake`` the command also attempts to load
+# ``cake-project-local.cmake`` from the same directory. This file can
+# contain settings specific to the local machine and should no be put
+# under version control.
+#
+# The ``cake-project.cmake`` and ``cake-project-local.cmake`` files usually
+#  contains ``set(<var> <value>)`` commands but may contain any CMake script.
+#
+# When configuring a CMake project without `cake` (i.e. running `cmake` directly)
+# and the CAKE_PROJECT_DIR is not set, the CMAKE_HOME_DIRECTORY will be
+# used instead of the current directory for searching the ``cake-project.cmake``
+# file.
+#
+# Cake project settings
+# =====================
+#
+# Following is the list of the Cake project configuration variables
+# that can be set in the ``cake-project.cmake`` file (all variables
+# must be normal, non-cache CMake variables):
+#
+# Usual CMake settings:
+#
+# - CMAKE_GENERATOR, CMAKE_GENERATOR_TOOLSET and CMAKE_GENERATOR_PLATFORM:
+#   they correspond to `cmake` options -G, -A and -T
+# - CMAKE_INSTALL_PREFIX, CMAKE_PREFIX_PATH (can be a list)
+# - CMAKE_ARGS: any option that can be passed to `cmake`
+# - CMAKE_NATIVE_TOOL_ARGS: options passed to the native build tool
+#   (options after '--' when invoking ``cmake --build``)
+#
+# Note: You can specify any options with CMAKE_ARGS including options
+# listed here (CMAKE_GENERATOR, etc..) but certain settings
+# are easier to set and modify using the standalone variables.
+#
+# These options can be overridden on the `cake` command line, too.
+#
+# Cake settings:
+#
+# - CAKE_BINARY_DIR_PREFIX: the binary directory of the project will
+#   be created under this directory. The default value is ${CAKE_PROJECT_DIR}/build
+# 
+# Cake package settings:
+# 
+# - CAKE_PKG_CONFIGURATION_TYPES: list of configuration values (Debug, Release).
+#   The installed packages (see `cake_pkg`) will be built and installed in
+#   these configurations. Default value is ``Release``.
+# - CAKE_PKG_PROJECT_DIR: by default the installed packages will be configured
+#   with the same project settings as the project that installs them.
+#   You can specify another project (for example, your local package library in
+#   your user directory. This allows sharing the same packages between projects.
+# - CAKE_PKG_CLONE_DIR: Package sources will be cloned into this directory, if
+#   not specified otherwise. Default value: ${CAKE_PROJECT_DIR}/clone.
+# - CAKE_PKG_REGISTRIES: List of package registry files (local or URLs) containing
+#   a list of cake_pkg(REGISTER ...) commands that may describe URLs, dependency
+#   information and other data for packages.
+#   For example, you can store a package registry file on your local git server
+#   which lists all the packages available on the server. You can later install
+#   them by name instead of URL.
+# - CAKE_PKG_CLONE_DEPTH:
+#   For the ``cake_pkg(INSTALL|CLONE ...)`` commands this variable controls the
+#   depth parameter of the ``git clone --depth <d>`` command.
+#   Set to zero to clone at unlimited depth. If undefined or empty the default
+#   behaviour will be used, which is to
+#   - clone with ``--depth=1`` when cloning to an automatic location (that is,
+#     the DESTINATION parameter is not specified)
+#   - clone at unlimited depth when cloning to a specific location (that is, the
+#     DESTINATION parameter is set, including, for example, when
+#     `cake_add_subdirectory` calls ``cake_PKG(CLONE ...)``.
 
 cmake_minimum_required(VERSION 3.1)
 
 get_filename_component(CAKE_ROOT ${CMAKE_CURRENT_LIST_DIR}/.. ABSOLUTE)
+file(TO_CMAKE_PATH "${CAKE_CURRENT_DIRECTORY}" CAKE_CURRENT_DIRECTORY)
 
 include(${CAKE_ROOT}/Modules/private/CakePrivateUtils.cmake)
-include(${CMAKE_CURRENT_LIST_DIR}/private.cmake)
 
 unset(opt_source_dir) # source dir specified on the command line
 unset(opt_binary_dir) # binary dir specified on the command line
@@ -164,7 +264,7 @@ foreach(i RANGE ${first_arg_idx} ${last_arg_idx})
 		elseif(a MATCHES "^(-C|-D|-U|-G|-T|-c|--config=|-t|--target=)(.*)$")
 			string(REPLACE ";" "\;" a "${a}")
 			list(APPEND cake_options "${a}")
-		elseif(a MATCHES "^(-W(no-)?dev|-N|--rm-bin|-R|--debug-release|-n|--install|--clean-first|--use-stderr)$")
+		elseif(a MATCHES "^(-W(no-)?dev|-N|--rm-bin|-R|--debug-release|-n|--install|--clean-first|--use-stderr|--debug-trycompile|--debug-output|--trace|--warn-uninitialized|--warn-unused-vars|--no-warn-unused-cli|--check-system-vars)$")
 			list(APPEND cake_options "${a}")
 		elseif(a STREQUAL "--ide")
 			set(opt_ide 1)
@@ -229,7 +329,7 @@ if(opt_binary_dir)
 	set(binary_dir_from_args 1)
 endif()
 
-if(NOT EXISTS ${cake_source_dir}/CMakeLists.txt)
+if(NOT EXISTS "${cake_source_dir}/CMakeLists.txt")
 	message(FATAL_ERROR "[cake] Internal error: at this point we should have a valid cake_source_dir")
 endif()
 
@@ -238,12 +338,47 @@ cake_message(STATUS "Source dir: '${cake_source_dir}'")
 include(${CMAKE_CURRENT_LIST_DIR}/set_cake_tmp_dir.cmake)
 
 # load config from env vars
-include(${CAKE_ROOT}/Modules/CakeLoadConfig.cmake)
+include(${CAKE_ROOT}/Modules/private/CakeProject.cmake)
 
-set(CAKE_ARGS "${CAKE_CMAKE_ARGS}")
+       
+     
+_cake_get_project_var(EFFECTIVE CMAKE_ARGS)
+set(CAKE_ARGS "${ans}")
+
+_cake_get_project_var(EFFECTIVE CMAKE_GENERATOR)
+if(ans)
+	list(APPEND CAKE_ARGS "-G${ans}")
+endif()
+
+_cake_get_project_var(EFFECTIVE CMAKE_GENERATOR_TOOLSET)
+if(ans)
+	list(APPEND CAKE_ARGS "-T${ans}")
+endif()
+
+_cake_get_project_var(EFFECTIVE CMAKE_GENERATOR_PLATFORM)
+if(ans)
+	list(APPEND CAKE_ARGS "-A${ans}")
+endif()
+
+_cake_get_project_var(EFFECTIVE CMAKE_INSTALL_PREFIX)
+if(ans)
+	list(APPEND CAKE_ARGS "-DCMAKE_INSTALL_PREFIX=${ans}")
+endif()
+
+_cake_get_project_var(EFFECTIVE CMAKE_PREFIX_PATH)
+
+if(ans)
+	string(REPLACE ";" "\;" ans "${ans}")
+	list(APPEND CAKE_ARGS "-DCMAKE_PREFIX_PATH=${ans}")
+endif()
+
 list(APPEND CAKE_ARGS "${cake_options}")
-set(CAKE_NATIVE_TOOL_ARGS "${CAKE_CMAKE_NATIVE_TOOL_ARGS}")
-list(APPEND CAKE_NATIVE_TOOL_ARGS "${cake_native_tool_options}")
+
+set(CAKE_NATIVE_TOOL_ARGS "${cake_native_tool_options}")
+_cake_get_project_var(EFFECTIVE CMAKE_NATIVE_TOOL_ARGS)
+if(ans)
+	list(APPEND CAKE_NATIVE_TOOL_ARGS ${ans})
+endif()
 
 # initialize variables for parsing the options in CAKE_ARGS
 
@@ -253,6 +388,16 @@ unset(opt_generate) # options for the generation step
 unset(opt_targets) # list specific targets to build (collected list of parameters to -t|--target)
 unset(opt_configs) # configs to generate or build (Debug, Release, etc..) (collected list of parameters to -c|--config)
 unset(opt_rm_bin) # --rm-bin was specified
+
+
+macro(handle_opt_target _ho_arg)
+	set(need_build_step 1)
+	list(APPEND opt_targets "${_ho_arg}")
+endmacro()
+
+macro(handle_opt_config _ho_arg)
+	list(APPEND opt_configs "${_ho_arg}")
+endmacro()
 
 # parse CAKE_ARGS
 # also remember the last value of -G and -DCMAKE_BUILD_TYPE options
@@ -287,7 +432,7 @@ foreach(a ${CAKE_ARGS})
 			elseif(a MATCHES "^-DCMAKE_BUILD_TYPE(:.*)=(.*)$")
 				set(cmake_build_type "${CMAKE_MATCH_2}")
 			endif()
-		elseif(a MATCHES "^(-W(no-)?dev|-N)$")
+		elseif(a MATCHES "^(-W(no-)?dev|-N|--debug-trycompile|--debug-output|--trace|--warn-uninitialized|--warn-unused-vars|--no-warn-unused-cli|--check-system-vars)$")
 			list(APPEND opt_generate "${a}")
 		elseif(a MATCHES "^--rm-bin$")
 			set(opt_rm_bin 1)
@@ -329,24 +474,33 @@ endif()
 
 # settle on CAKE_BINARY_DIR
 if(NOT CAKE_BINARY_DIR)
-	get_filename_component(cake_source_dir_name "${cake_source_dir}" NAME)
-	if(NOT IS_ABSOLUTE "${CAKE_BINARY_DIR_PREFIX}")
-		if(NOT CAKE_TMP_DIR)
-			message(FATAL_ERROR "[cake] Temporary dir not found for generating binary dir. Specify an absolute CAKE_BINARY_DIR_PREFIX specify the binary dir on the command line.")
-		endif()
-		if(CAKE_BINARY_DIR_PREFIX)
-			set(CAKE_BINARY_DIR_PREFIX ${CAKE_TMP_DIR}/${CAKE_BINARY_DIR_PREFIX})
-		else()
-			set(CAKE_BINARY_DIR_PREFIX ${CAKE_TMP_DIR})
-		endif()
+	_cake_get_project_var(EFFECTIVE CAKE_BINARY_DIR_PREFIX)
+	if(NOT ans)
+		message(FATAL_ERROR "[cake] CAKE_BINARY_DIR_PREFIX must not be empty.")
 	endif()
-	set(CAKE_BINARY_DIR ${CAKE_BINARY_DIR_PREFIX}/${cake_source_dir_name})
+
+	set(CAKE_BINARY_DIR_PREFIX "${ans}")
+
+	file(RELATIVE_PATH proj_to_src_path "${CAKE_PROJECT_DIR}" "${cake_source_dir}")
+
+	get_filename_component(src_dir_name "${cake_source_dir}" NAME)
+
+	if(proj_to_src_path MATCHES "^\\.\\.")
+		string(MAKE_C_IDENTIFIER "${cake_source_dir}" cake_source_dir_cid)
+		set(CAKE_BINARY_DIR "${CAKE_BINARY_DIR_PREFIX}/${cake_source_dir_cid}")
+	elseif(proj_to_src_path STREQUAL "")
+		set(CAKE_BINARY_DIR "${CAKE_BINARY_DIR_PREFIX}/${src_dir_name}")
+	elseif(proj_to_src_path STREQUAL src_dir_name)
+		set(CAKE_BINARY_DIR "${CAKE_BINARY_DIR_PREFIX}/${src_dir_name}_${src_dir_name}")
+	else()
+		string(MAKE_C_IDENTIFIER "${proj_to_src_path}" proj_to_src_path_cid)
+		set(CAKE_BINARY_DIR "${CAKE_BINARY_DIR_PREFIX}/${proj_to_src_path_cid}")
+	endif()
 endif()
 
 # try to load cmake_generator_from_cmakecache from the binary dir
 if(NOT opt_rm_bin AND IS_DIRECTORY ${CAKE_BINARY_DIR} AND EXISTS ${CAKE_BINARY_DIR}/CMakeCache.txt)
-	file(STRINGS ${CAKE_BINARY_DIR}/CMakeCache.txt v
-		REGEX "CMAKE_GENERATOR")
+	file(STRINGS ${CAKE_BINARY_DIR}/CMakeCache.txt v REGEX "CMAKE_GENERATOR")
 	string(REGEX MATCH "^[\t ]*CMAKE_GENERATOR:INTERNAL=(.*)$" v ${v})
 	set(cmake_generator_from_cmakecache ${CMAKE_MATCH_1})
 endif()
@@ -364,7 +518,13 @@ else()
 endif()
 
 if(opt_ide AND NOT ide_generator)
-	message(FATAL_ERROR "[cake] No IDE generator specified for option '--ide'.")
+	if(cmake_generator_from_cmakecache)
+		message(FATAL_ERROR "[cake] You specified the option '--ide' but the generator found in the existing binary dir is ${cmake_generator} which is not an IDE generator.")
+	elseif(cmake_generator_from_command_line)
+		message(FATAL_ERROR "[cake] You specified the option '--ide' but the requested generator (${cmake_generator}) is not an IDE generator.")
+	else()
+		message(FATAL_ERROR "[cake] You specified the option '--ide' but the default generator is to be determined by CMake in the initial configuration step. Configure first without '--ide' and re-run 'cake' with '--ide'.")
+	endif()
 endif()
 
 list(LENGTH opt_configs config_count)
@@ -424,6 +584,7 @@ if(need_generate_step)
 			endif()
 			set(cmake_command_line
 				"-DCAKE_ROOT=${CAKE_ROOT}"
+				"-DCAKE_PROJECT_DIR=${CAKE_PROJECT_DIR}"
 				"${opt_generate}"
 				"${cbt}"
 				"${cake_source_dir}"
@@ -517,12 +678,17 @@ if(need_build_step)
 			if(opt_targets)
 				set(target_option --target ${t})
 			endif()
+			if(CAKE_NATIVE_TOOL_ARGS)
+				set(maybe_two_dashes --)
+			else()
+				set(maybe_two_dashes "")
+			endif()
 			set(cmake_command_line
 				--build "${binary_dir}"
 				${target_option}
 				${config_option}
 				${opt_build}
-				--
+				${maybe_two_dashes}
 				${CAKE_NATIVE_TOOL_ARGS}
 			)
 			cake_list_to_command_line_like_string(s ${cmake_command_line})

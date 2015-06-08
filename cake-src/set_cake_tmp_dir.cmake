@@ -1,6 +1,6 @@
-# for information about most of the variables see cakecfg_vars.cmake
+# set CAKE_TMP_DIR to system temp dir or "" if not found
 
-unset(CAKE_TMP_DIR)
+set(CAKE_TMP_DIR "")
 foreach(_i "$ENV{TMP}" "$ENV{TEMP}" "$ENV{TMPDIR}" "/tmp")
 	if(IS_DIRECTORY "${_i}")
 		set(CAKE_TMP_DIR "${_i}")
