@@ -27,9 +27,10 @@ macro(_cake_need_empty_directory dn)
     else()
       set(ans 0) # existing file
     endif()
+  else()
+    file(MAKE_DIRECTORY "${dn}") # does not exist
+    set(ans 1)
   endif()
-  file(MAKE_DIRECTORY "${dn}") # does not exist
-  set(ans 1)
 endmacro()
 
 # pkg_url is the full, decorated URL (with optional query part to specify key-value pairs)
