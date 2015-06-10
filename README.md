@@ -1,14 +1,21 @@
 Cake for CMake
 ==============
 
-*Cake* is a lightweight package management system for *CMake*, implemented in a few *CMake* functions and a shell command.
+*Cake* is a lightweight project and package management system for CMake, implemented in CMake scripts which can be used from the command-line or from your *CMakeList.txt*. Features:
 
-- Supports both external dependencies (built in their own source trees) and subprojects (`add_subdirectory`).
-- Requires minimal change in your projects, supports legacy *CMake*-enabled packages (zero change).
+- Provides a (very simple) project file to manage and organize your CMake projects and directories, something like [Maven](https://maven.apache.org)
+- Provides tool to manage multiple repositories (a bit like [Google's repo-tool](https://code.google.com/p/git-repo))
+- Clone, build and install dependencies in configuration time, retrieve dependencies recursively
+- Supports both external dependencies (built in their own build trees) and subprojects (`add_subdirectory`).
+- Requires minimal change in your projects, supports legacy *CMake* dependencies (zero change).
 - Supports optional dependencies (like a `--with-sqlite` option)
-- Supports organizing master projects.
 
-*Cake* also provides a convenience shell command `cake` which is a drop-in replacement for the `cmake` command for managing parameters passed to `cmake`.
+
+---- from this on UNDER CONSTRUCTION ----
+
+
+Project Management
+------------------
 
 Package Management
 ------------------
