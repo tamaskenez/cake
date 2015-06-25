@@ -172,7 +172,7 @@
 #     DESTINATION parameter is set, including, for example, when
 #     `cake_add_subdirectory` calls ``cake_PKG(CLONE ...)``.
 
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.0)
 
 get_filename_component(CAKE_ROOT ${CMAKE_CURRENT_LIST_DIR}/.. ABSOLUTE)
 file(TO_CMAKE_PATH "${CAKE_CURRENT_DIRECTORY}" CAKE_CURRENT_DIRECTORY)
