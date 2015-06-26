@@ -35,7 +35,7 @@
 #
 #     set(CAKE_PKG_CLONE_DEPTH "")
 #
-# CAKE_PKG_CONFIGURATION controls in what configurations the packages will be
+# CAKE_PKG_CONFIGURATION_TYPES controls in what configurations the packages will be
 # installed:
 #
 #     set(CAKE_PKG_CONFIGURATION_TYPES Debug Release)

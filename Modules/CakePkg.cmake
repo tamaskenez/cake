@@ -2,102 +2,165 @@
 # CakePkg
 # -------
 #
-# CAKE_PKG() performs various operations on a single package or on multiple packages.
-# The operations are cloning, installation, removal and status reports.
+# CAKE_PKG() performs various operations on a single package or on
+# multiple packages. The operations are cloning, installation, removal
+# and status reports and registering packages.
 #
 # ::
 #
 # 1. CLONE
+# ========
 #
-#   CAKE_PKG(CLONE
+#   CAKE_PKG(CLONE [name>]
 #            NAME <name> | URL <repo-url>
 #            [GROUP <group>]
 #            [DESTINATION <dest-dir>])
 #
-# The command clones the repository to the given `<dest-dir>` or to an automatic location.
-# Relative `<dest-dir>` is interpreted relative to the current source directory. In script mode it must be absolute.
+# The command clones the repository to the given `<dest-dir>` or to an
+# automatic location.
+# Relative `<dest-dir>` is interpreted relative to the current source
+# directory. In script mode it must be absolute.
 #
-# Either ``<repo-url>`` or ``<pkg-name>`` must be given. If ``<pkg-name>`` is given
-# the command looks up ``<pkg-name>`` in the Cake package registry, see `CakeRegisterPkg()`.
-# If both ``<repo-url>`` and ``<pkg-name>`` are given the ``<repo-url>`` is only a hint, will be
-# used only if no ``<pkg-name>`` is found in the registry.
+# Either ``<repo-url>`` or ``<pkg-name>`` must be given. If ``<pkg-name>``
+# is given the command looks up ``<pkg-name>`` in the Cake package
+# registry, see `CakeRegisterPkg()`.
+# If both ``<repo-url>`` and ``<pkg-name>`` are given the ``<repo-url>``
+# is only a hint, will be used only if no ``<pkg-name>`` is found in the
+# registry.
 #
-# If the package of the same ``<pkg-name>`` or ``<repo-url>`` has already been cloned the
-# function does nothing. Even if both the `<name>` and `<repo_url>` are specified but
-# the package `<name>` has already been cloned from a different URL, the command will succeed
-# without making any changes.
+# If the package of the same ``<pkg-name>`` or ``<repo-url>`` has already
+# been cloned the function does nothing. Even if both the `<name>` and
+# `<repo_url>` are specified but the package `<name>` has already been
+# cloned from a different URL, the command will succeed without making
+# any changes.
 #
 # It is an error if the existing location differs from `<dest-dir>`.
 #
-# If no `<dest-dir>` given the function uses the value of ``CMAKE_INSTALL_PREFIX`` set in ``CAKE_PKG_CMAKE_ARGS`` and create a directory
-# under ${CMAKE_INSTALL_PREFIX}/src. The actual name of the directory will be derived from ``<repo-url>``.
-# See also `CakeLoadConfig.cmake`.
+# If no `<dest-dir>` given the repository will be cloned under the
+# directory ``CAKE_PKG_CLONE_DIR`` (see ``cake-project-sample.cmake``
+# or ``cake-src/cake.cmake``). The actual name of the directory will be
+# derived from ``<repo-url>``.
 #
-# Usually you don't call `cake_pkg(CLONE ...)` with `DESTINATION` directly, instead you call `cake_add_subdirectory()`.
+# Usually you don't call `cake_pkg(CLONE ...)` with `DESTINATION` directly,
+# instead you call `cake_add_subdirectory()`.
 #
 # ``<group>`` can be used to group packages, defaults to ``_ungrouped_``
 #
 # 2. INSTALL
+# ==========
 #
-#   CAKE_PKG(CLONE
+#   CAKE_PKG(INSTALL <name>
 #            NAME <name> | URL <repo-url>
 #            [GROUP <group>]
 #            [DESTINATION <dest-dir>]
-#            [DEFINITIONS <definitions>...])
+#            [CMAKE_ARGS <cmake-args>...]
+#            [SOURCE_DIR <source-dir>])
 #
-# The INSTALL signature implies a CLONE step first so everything written for CLONE applies here.
+# The INSTALL signature implies a CLONE step first so everything written
+# for CLONE applies here, too.
 #
-# After the CLONE the command attemts to install the dependencies of the cloned repository:
-# - attempts to find and execute (`include`) the file ``cake-pkg-depends.cmake`` in the root of the repository
-# - if the file cannot be found, attempts to look up the repository in the Cake package registry and
-#   execute the code found there
+# After the CLONE the command attemts to install the dependencies of the
+# cloned repository:
 #
-# After executing the dependency script (if found) the commands finished by configuring and building
-# the ``install`` target of the repository using the ``cmake`` command.
+# - attempts to find and execute (`include`) the file
+# ``cake-install-deps.cmake`` next to the ``CMakeLists.txt``
+# - if the file cannot be found, attempts to look up the repository in
+#  the Cake package registry and execute the code found there
 #
-# The `<definitions>` is a list of -Dname=value strings (value is optional). The URL also may contain definitions
-# (see the next section). These definitions will be passed to the dependency script and also the the ``cmake``
-# configuration phase.
+# After installing the dependencies (if found) the command
+# - configures the project with ``cmake`` using the root of the package
+#   or the directory ``<source-dir>`` (relative to the root)
+# - builds the ``install`` target in the configurations listed in
+#   ``CAKE_PKG_CONFIGURATION_TYPES``
 #
-# The INSTALL phase saves the package's SHA1 commit-ids after successful builds. The next time the INSTALL
-# phase checks the saved SHA and will not launch the CMake build operation for an unchanged package.
+# The `<cmake-args>` is a list of -Dname=value strings (value is
+# optional). The arguments will also be passed to the code that
+# installs the dependencies and ``cmake`` configuration phase.
 #
-# About the cake environment variables controlling these operations see `cake_load_config()`
+# The INSTALL phase saves the package's SHA1 commit-ids after successful
+# builds. The next time the INSTALL phase checks the saved SHA and will
+# not launch the CMake build operation for an unchanged package.
+# Note that uncommitted changes will be not detected. Of course, for packages
+# added with ``cake_add_subdirectory`` the change detection is handled
+# by the underlying build system, as usual.
 #
 # Format of the ``<repo-url>``
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
-# The ``<repo-url>`` is what you would pass to ``git clone``. Optionally it can be extended with other parameters using
-# the URL query format. For example:
+# The ``<repo-url>`` is what you would pass to ``git clone``. Optionally
+# it can be extended with other parameters using the URL query format.
+# For example:
 #
-#     https://github.com/me/my.git?branch=devel&-DWITH_SQLITE=1
+#     https://github.com/me/my.git?branch=devel
 #
-# Key values starting with -D will be passed to CMake when building the package. Other options will
-# be passed to git clone:
+# Currently the only supported parameter is ``branch``:
 #
 # - ``branch=<branch>`` -> ``git clone ... --branch <branch>``
 #
-# Determining dependencies from ``cake-pkg-depends.cmake``:
+# Determining dependencies from ``cake-install-deps.cmake``:
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
-# The root directory of the package may contain the file ``cake-pkg-depends.cmake``. This is a plain Cmake script
-# which usually contains a `cake_pkg(INSTALL ...)` commands for the dependencies of the package, for example::
+# The root directory (or the one specified with ``SOURCE_DIR``) may
+# contain the file ``cake-pkg-depends.cmake``. This is a plain Cmake script
+# which usually contains `cake_pkg(INSTALL ...)` commands for the
+# dependencies of the package, for example::
 #
-#    cake_pkg(INSTALL https://github.com/madler/zlib.git)
+#    cake_pkg(INSTALL https://github.com/madler/zlib)
 #
-# The -D options of the ``<repo-url>`` are also passed to the ``cake-pkg-depends.cmake`` script so it
-# can install the dependencies accordingly::
+# The CMAKE_ARGS options of the ``cake_pkg(INSTALL ...)`` command are also
+# passed to the ``cake-install-deps.cmake`` script so it can install the
+# dependencies accordingly::
 #
-#    if(WITH_SQLITE)
-#        cake_pkg(INSTALL https://github.com/myaccount/sqlite-cmake)
+#    if(MYLIB_WITH_SQLITE)
+#        cake_pkg(INSTALL https://github.com/tamaskenez/sqlite3-cmake)
 #    endif()
 #
 # Extracting dependencies from Cake package database:
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
-# Sometimes you can't add a ``cake-pkg-depends.cmake`` file to a third-party library. In this
-# case you can add the dependency information by calling `cake_pkg_depends`, see CakePkgDepends.cmake.
+# Sometimes you can't add a ``cake-install-deps.cmake`` file to a
+# third-party repository. In this case you can add the code that
+# install the dependencies with ``cake_pkg(REGISTER ...)``.
 #
+# 3. REGISTER
+# ===========
+#
+#   CAKE_PKG(REGISTER <name>
+#            NAME <name> | URL <repo-url>
+#            [CMAKE_ARGS <cmake-args>...]
+#            [SOURCE_DIR <source-dir>]
+#            [CODE <install-deps-code>])
+#
+# With the command you can specify information about package in advance,
+# and for all the subsequent ``cake_pkg(CLONE/INSTALL)`` commands.
+#
+# Conveniently, a list of ``cake_pkg(REGISTER ...)`` commands can be put
+# into a file (local or remote) and be referenced in the your project file
+# (``cake-project.cmake``) in the variable ``CAKE_PKG_REGISTRIES``.
+# This will make sure the information will be available to the ``cakepkg``
+# shell commands, too.
+#
+# All the arguments of ``cake_pkg(REGISTER ...)`` has the same meaning
+# as for the ``CLONE`` and ``INSTALL`` subcommands. The ``CODE`` option
+# can be used instead of the ``cake-install-deps.cmake`` file placed
+# next to the ``CMakeLists.txt`` of a package.
+#
+# 3. COMMAND|CMDC|SHC
+# ===================
+#
+#   CAKE_PKG(COMMAND|CMDC|SHC <cmd> [args1...])
+#
+# 4. LIST|STATUS|DIFFLOG
+# ======================
+#
+#   CAKE_PKG(LIST|STATUS|DIFFLOG)
+#
+# 5. REMOVE
+# =========
+#
+#   CAKE_PKG(REMOVE <name>)
+#
+
 
 include(CMakePrintHelpers)
 
@@ -139,8 +202,6 @@ if(NOT CAKE_PKG_INCLUDED)
     foreach(i ${definitions})
       if(i MATCHES "^-D([^=]+)=(.*)$")
         set(${CMAKE_MATCH_1} "${CMAKE_MATCH_2}")
-      else()
-        message(FATAL_ERROR "[cake] Internal error, definition does not match regex (-DX=Y): ${i}")
       endif()
     endforeach()
   endmacro()
@@ -238,8 +299,8 @@ if(NOT CAKE_PKG_INCLUDED)
     endif()
   endfunction()
 
-  # includes the file 'cake_pkg_depends_file'
-  # if that doesn't exist, looks up CAKE_PKG_DEPENDS_* variables and includes those
+  # includes the file ``cake_pkg_depends_file_arg``
+  # if that doesn't exist, looks up CAKE_PKG_REGISTRY_${name}_CODE variables and includes those
   # also applies the variables in 'definitions'
   macro(_cake_include_cake_install_deps cake_pkg_depends_file_arg cid name definitions)
     set(_cake_pkg_depends_file "${cake_pkg_depends_file_arg}")
@@ -284,19 +345,6 @@ if(NOT CAKE_PKG_INCLUDED)
 
   include(${CAKE_ROOT}/Modules/private/CakePkgInstall.cmake)
   
-# CAKE_PKG_REGISTRY_<NAME> = URL [DEFINITIONS]
-# CLONE:
-# - CLONE URL [DESTINATION] [NAME] [GROUP]
-# - CLONE NAME [DESTINATION] [GROUP]
-# INSTALL single:
-# - INSTALL URL [DESTINATION] [NAME] [GROUPS] [DEFINITIONS]
-# - INSTALL NAME [DESTINATION] [GROUPS] [DEFINITIONS]
-# REPORT batch:
-# - STATUS|DIFFLOG|COMMAND|CMDC|SHC
-# REMOVE single
-# - REMOVE NAME
-# - LIST NAME
-
   function(cake_pkg ARG_C)
 
     set(option_args "")
@@ -322,8 +370,8 @@ if(NOT CAKE_PKG_INCLUDED)
       set(sv_args URL DESTINATION NAME GROUP PK_OUT BRANCH)
       _cake_fix_name()
     elseif(ARG_C MATCHES "^INSTALL$")
-      set(sv_args URL DESTINATION NAME GROUP PK_OUT BRANCH)
-      set(mv_args DEFINITIONS)
+      set(sv_args URL DESTINATION NAME GROUP PK_OUT BRANCH SOURCE_DIR)
+      set(mv_args CMAKE_ARGS)
       _cake_fix_name()
     elseif(ARG_C MATCHES "^STATUS$")
       set(mv_args "GROUPS")
@@ -338,7 +386,7 @@ if(NOT CAKE_PKG_INCLUDED)
       set(mv_args "GROUPS")
       _cake_fix_name()
     elseif(ARG_C MATCHES "^REGISTER$")
-      set(sv_args URL CODE NAME)
+      set(sv_args URL CODE NAME CMAKE_ARGS SOURCE_DIR)
       _cake_fix_name()
     else()
       message(FATAL_ERROR "[cake] First argument must be one of these: CLONE, INSTALL, STATUS, DIFFLOG, COMMAND, CMDC, SHC, REMOVE, LIST.")
@@ -426,13 +474,11 @@ if(NOT CAKE_PKG_INCLUDED)
         set(repo_url "")
         set(repo_cid "")
         set(repo_options "")
-        set(repo_definitions "")
       endif()
       _cake_pkg_clone("${ARG_URL}" "${ARG_DESTINATION}" "${group}" "${ARG_NAME}" "${ARG_BRANCH}")
       set(pk "${ans}")
       if(ARG_C MATCHES "^INSTALL$")
-        set(defs "${repo_definitions}" "${ARG_DEFINITIONS}")
-        _cake_pkg_install("${pk}" "${defs}")
+        _cake_pkg_install("${pk}" "${ARG_CMAKE_ARGS}" "${ARG_SOURCE_DIR}")
       endif()
       if(ARG_PK_OUT)
         set(${ARG_PK_OUT} "${pk}" PARENT_SCOPE)
@@ -595,12 +641,11 @@ if(NOT CAKE_PKG_INCLUDED)
       if(NOT ARG_NAME)
         message(FATAL_ERROR "[cake] cake_pkg(REGISTER ...) missing NAME argument.")
       endif()
-      if(ARG_URL AND NOT DEFINED CAKE_PKG_REGISTRY_${ARG_NAME}_URL)
-        set(CAKE_PKG_REGISTRY_${ARG_NAME}_URL "${ARG_URL}" CACHE INTERNAL "")
-      endif()
-      if(ARG_CODE AND NOT DEFINED CAKE_PKG_REGISTRY_${ARG_NAME}_CODE)
-        set(CAKE_PKG_REGISTRY_${ARG_NAME}_CODE "${ARG_CODE}" CACHE INTERNAL "")
-      endif()
+      foreach(p URL CODE SOURCE_DIR CMAKE_ARGS)
+        if(ARG_${p} AND NOT DEFINED CAKE_PKG_REGISTRY_${ARG_NAME}_${p})
+          set(CAKE_PKG_REGISTRY_${ARG_NAME}_${p} "${ARG_${p}}" CACHE INTERNAL "")
+        endif()
+      endforeach()
     else()
       message(FATAL_ERROR "[cake_pkg] internal error in arg parsing")
     endif()

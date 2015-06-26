@@ -45,7 +45,7 @@ function(_cake_are_build_par_lists_compatible last_build_pars_var build_pars_now
 endfunction()
 
 # pk: primary key of entry in repo_db
-function(_cake_pkg_install pk definitions)
+function(_cake_pkg_install pk arg_cmake_args arg_source_dir)
   if(NOT CAKE_PKG_BUILD_DIR)
     message(FATAL_ERROR "[cake] Internal error, CAKE_PKG_BUILD_DIR must not be empty.")
   endif()
@@ -59,8 +59,8 @@ function(_cake_pkg_install pk definitions)
   # check if destination is a subdirectory
   if(CAKE_PKG_${cid}_ADDED_AS_SUBDIRECTORY)
     cake_message(STATUS "The package ${repo_url} has already been added as subdirectory, skipping installation. "
-      "The consumer of this package (${CMAKE_CURRENT_SOURCE_DIR}) must be prepared to use the package as a target as opposed to"
-      " a package found by find_package() or cake_find_package().")
+      "The consumer of this package (${CMAKE_CURRENT_SOURCE_DIR}) must be prepared to use the package as a target and without"
+      " invoking find_package().")
     return()
   endif()
 
@@ -96,14 +96,31 @@ function(_cake_pkg_install pk definitions)
     list(APPEND cmake_args "-DCMAKE_PREFIX_PATH=${ans}")
   endif()
 
-  set(build_pars_now "")
-  foreach(c ${definitions} ${cmake_args})
-    if(c MATCHES "^-D[^=]+=.*$")
-      string(REPLACE ";" "\;" c "${c}")
-      list(APPEND build_pars_now "${c}")
-    endif()
-  endforeach()
+# - cmake_args assembled here
+# - from CMAKE_ARGS (command)
+# - from registered name
+#
+
+  cake_repo_db_get_field_by_pk(name "${pk}")
+  set(name "${ans}")
+
+  set(source_dir "${CAKE_PKG_REGISTRY_${name}_SOURCE_DIR}")
+  if(arg_source_dir)
+    set(source_dir "${arg_source_dir}")
+  endif()
+  if(source_dir STREQUAL ".")
+    set(source_dir "")
+  endif()
+
+  set(cmake_args_for_install_deps ${arg_cmake_args} "${CAKE_PKG_REGISTRY_${name}_CMAKE_ARGS}")
+  list(APPEND cmake_args "${cmake_args_for_install_deps}")
+
+  set(build_pars_now "${cmake_args}")
+  if(source_dir)
+    list(APPEND build_pars_now "SOURCE_DIR=${source_dir}")
+  endif()
   cake_list_sort_unique_keep_nested_lists(SORT build_pars_now) # canonical ordering
+
   set(build_pars_now "COMMIT=${repo_sha}" "${build_pars_now}")
 
   # if we've already installed this in this session just make sure the
@@ -130,15 +147,18 @@ function(_cake_pkg_install pk definitions)
   # execute the repo's cake-install-deps.cmake script, if exists
     # otherwise try to execute the script (CODE) registered to the name
 
-  cake_repo_db_get_field_by_pk(name "${pk}")
-  set(name "${ans}")
-
   set(CAKE_LAST_BUILD_TIME_SAVED "${CAKE_LAST_BUILD_TIME}")
   cake_set_session_var(CAKE_LAST_BUILD_TIME "")
 
+  if(source_dir)
+    set(abs_source_dir "${destination}/${source_dir}")
+  else()
+    set(abs_source_dir "${destination}")
+  endif()
+
   _cake_include_cake_install_deps(
-    "${destination}/cake-install-deps.cmake"
-    "${cid}" "${name}" "${definitions}")
+    "${abs_source_dir}/cake-install-deps.cmake"
+    "${cid}" "${name}" "${cmake_args_for_install_deps}")
 
   set(dependencies_last_build_time "${CAKE_LAST_BUILD_TIME}")
   cake_set_session_var(CAKE_LAST_BUILD_TIME "${CAKE_LAST_BUILD_TIME_SAVED}")
@@ -168,7 +188,7 @@ function(_cake_pkg_install pk definitions)
     )
       cake_message(STATUS "Building the install target (${c}) for package ${project_title}")
 
-      # remove pars from last build
+      # remove definitions from last build
       set(unset_definitions "")
       foreach(i ${last_build_pars})
         if(i MATCHES "^-D([^=]+)=.*$")
@@ -192,11 +212,10 @@ function(_cake_pkg_install pk definitions)
       set(command_line
           "-DCMAKE_BUILD_TYPE=${c}"
           "-DCAKE_ROOT=${CAKE_ROOT}"
-          "${cmake_args}"
           "${unset_definitions}"
-          "${definitions}"
+          "${cmake_args}"
           "-DCAKE_PKG_LOAD_THE_SESSION_VARS=${CAKE_PKG_SESSION_VARS_FILE}"
-          "${destination}"
+          "${abs_source_dir}"
       )
 
       set(binary_dir ${CAKE_PKG_BUILD_DIR}/${shortcid}_${c})

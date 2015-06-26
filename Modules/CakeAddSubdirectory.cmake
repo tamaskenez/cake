@@ -89,8 +89,6 @@ if(NOT CAKE_ADD_SUBDIRECTORY_INCLUDED)
     set(cid "${ans}")
     cake_repo_db_get_field_by_pk(name "${pk}")
     set(name "${ans}")
-    cake_repo_db_get_field_by_pk(definitions "${pk}")
-    set(definitions "${ans}")
 
     cake_set_session_var(CAKE_PKG_${cid}_ADDED_AS_SUBDIRECTORY 1)
 
@@ -98,7 +96,7 @@ if(NOT CAKE_ADD_SUBDIRECTORY_INCLUDED)
     # otherwise try to execute the script (CODE) registered to the name
     _cake_include_cake_install_deps(
       "${ARG_SOURCEDIR_ABS}/cake-install-deps.cmake"
-      "${cid}" "${name}" "${definitions}")
+      "${cid}" "${name}" "${CAKE_PKG_REGISTRY_${name}_CMAKE_ARGS}")
 
     add_subdirectory(${add_subdir_args})
 
