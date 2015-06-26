@@ -112,16 +112,16 @@ function(_cake_pkg_install pk arg_cmake_args arg_source_dir)
     set(source_dir "")
   endif()
 
-  set(cmake_args_for_install_deps ${arg_cmake_args} "${CAKE_PKG_REGISTRY_${name}_CMAKE_ARGS}")
-  list(APPEND cmake_args "${cmake_args_for_install_deps}")
+  set(cmake_args_for_install_deps ${arg_cmake_args} ${CAKE_PKG_REGISTRY_${name}_CMAKE_ARGS})
+  list(APPEND cmake_args ${cmake_args_for_install_deps})
 
-  set(build_pars_now "${cmake_args}")
+  set(build_pars_now ${cmake_args})
   if(source_dir)
     list(APPEND build_pars_now "SOURCE_DIR=${source_dir}")
   endif()
   cake_list_sort_unique_keep_nested_lists(SORT build_pars_now) # canonical ordering
 
-  set(build_pars_now "COMMIT=${repo_sha}" "${build_pars_now}")
+  set(build_pars_now "COMMIT=${repo_sha}" ${build_pars_now})
 
   # if we've already installed this in this session just make sure the
   # current build settings are compatible with the first time's build settings
