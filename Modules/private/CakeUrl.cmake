@@ -40,8 +40,8 @@ if(NOT CAKE_URL_INCLUDED)
     set(options "")
     set(definitions "")
     foreach(i ${query})
-      if("${i}" MATCHES "^([^=]+)=(.*)$")
-        if("${CMAKE_MATCH_1}" MATCHES "^-D?") # -D and at least one character
+      if(i MATCHES "^([^=]+)=(.*)$")
+        if(CMAKE_MATCH_1 MATCHES "^-D?") # -D and at least one character
           string(REPLACE ";" "\;" i "${i}")
           list(APPEND definitions "${i}")
         else()

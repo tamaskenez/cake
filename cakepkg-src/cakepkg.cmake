@@ -17,7 +17,7 @@ include(${CAKE_ROOT}/Cake.cmake)
 # CMAKE_ARGV[CMAKE_ARGC-1]: last actual arg
 math(EXPR last_arg_idx "${CMAKE_ARGC}-1")
 foreach(i RANGE 1 ${last_arg_idx})
-	if("${CMAKE_ARGV${i}}" STREQUAL "-P")
+	if(CMAKE_ARGV${i} STREQUAL "-P")
 		math(EXPR this_file_path_idx "${i}+1")
 		math(EXPR first_arg_idx "${i}+2")
 		set(this_file_path "${CMAKE_ARGV${this_file_path_idx}}")

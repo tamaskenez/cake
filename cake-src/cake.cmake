@@ -201,7 +201,7 @@ unset(need_build_step) # if -b or -t was specified
 # CMAKE_ARGV[CMAKE_ARGC-1]: last actual arg
 math(EXPR last_arg_idx "${CMAKE_ARGC}-1")
 foreach(i RANGE 1 ${last_arg_idx})
-	if("${CMAKE_ARGV${i}}" STREQUAL "-P")
+	if(CMAKE_ARGV${i} STREQUAL "-P")
 		math(EXPR this_file_path_idx "${i}+1")
 		math(EXPR first_arg_idx "${i}+2")
 		set(this_file_path "${CMAKE_ARGV${this_file_path_idx}}")
@@ -231,7 +231,7 @@ foreach(i RANGE ${first_arg_idx} ${last_arg_idx})
 endforeach()
 
 list(GET CAKE_ARGS 0 CAKE_ARGV0)
-if("${CAKE_ARGV0}" STREQUAL "pkg")
+if(CAKE_ARGV0 STREQUAL "pkg")
 	set(CAKE_PKG_ARGS ${CAKE_ARGS})
 	list(REMOVE_AT CAKE_PKG_ARGS 0)
 	include(${CMAKE_CURRENT_LIST_DIR}/cake_pkg.cmake)
