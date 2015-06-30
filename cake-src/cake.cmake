@@ -485,15 +485,14 @@ if(NOT CAKE_BINARY_DIR)
 
 	get_filename_component(src_dir_name "${cake_source_dir}" NAME)
 
+	file(TO_CMAKE_PATH "${proj_to_src_path}" proj_to_src_path) # make sure \ -> /
 	if(proj_to_src_path MATCHES "^\\.\\.")
 		string(MAKE_C_IDENTIFIER "${cake_source_dir}" cake_source_dir_cid)
 		set(CAKE_BINARY_DIR "${CAKE_BINARY_DIR_PREFIX}/${cake_source_dir_cid}")
 	elseif(proj_to_src_path STREQUAL "")
-		set(CAKE_BINARY_DIR "${CAKE_BINARY_DIR_PREFIX}/${src_dir_name}")
+		set(CAKE_BINARY_DIR "${CAKE_BINARY_DIR_PREFIX}/_${src_dir_name}_")
 	elseif(proj_to_src_path STREQUAL src_dir_name)
-		set(CAKE_BINARY_DIR "${CAKE_BINARY_DIR_PREFIX}/${src_dir_name}_${src_dir_name}")
-	else()
-		string(MAKE_C_IDENTIFIER "${proj_to_src_path}" proj_to_src_path_cid)
+		string(REPLACE "/" "_" proj_to_src_path_cid "${proj_to_src_path}")
 		set(CAKE_BINARY_DIR "${CAKE_BINARY_DIR_PREFIX}/${proj_to_src_path_cid}")
 	endif()
 endif()
