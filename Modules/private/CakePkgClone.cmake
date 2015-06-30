@@ -185,7 +185,7 @@ function(_cake_pkg_clone pkg_url destination group name branch)
   # prepare command line for git clone
   list(APPEND command_line "${repo_url}" "${resolved_destination}")
   # git clone
-  _cake_execute_git_command_in_repo("${command_line}" "" res_var)
+  _cake_execute_git_command_in_repo("${command_line}" "" _ res_var)
 
   if(res_var)
     message(FATAL_ERROR "[cake_pkg] git clone failed")
