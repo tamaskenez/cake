@@ -10,8 +10,10 @@ Cake for CMake
 - Requires minimal change in your projects, supports legacy *CMake* dependencies (zero change).
 - Supports optional dependencies (like a `--with-sqlite` option)
 
+For a complex case study see: https://github.com/tamaskenez/mapbox-gl-native-cmake-builder
 
----- from this on UNDER CONSTRUCTION ----
+
+---- below this UNDER CONSTRUCTION ----
 
 
 Project Management
