@@ -498,7 +498,7 @@ if(NOT CAKE_BINARY_DIR)
 endif()
 
 # try to load cmake_generator_from_cmakecache from the binary dir
-if(NOT opt_rm_bin AND IS_DIRECTORY ${CAKE_BINARY_DIR} AND EXISTS ${CAKE_BINARY_DIR}/CMakeCache.txt)
+if(NOT opt_rm_bin AND IS_DIRECTORY "${CAKE_BINARY_DIR}" AND EXISTS "${CAKE_BINARY_DIR}/CMakeCache.txt")
 	file(STRINGS ${CAKE_BINARY_DIR}/CMakeCache.txt v REGEX "CMAKE_GENERATOR")
 	string(REGEX MATCH "^[\t ]*CMAKE_GENERATOR:INTERNAL=(.*)$" v ${v})
 	set(cmake_generator_from_cmakecache ${CMAKE_MATCH_1})
