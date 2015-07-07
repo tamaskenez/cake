@@ -486,12 +486,32 @@ if(NOT CAKE_BINARY_DIR)
 	get_filename_component(src_dir_name "${cake_source_dir}" NAME)
 
 	file(TO_CMAKE_PATH "${proj_to_src_path}" proj_to_src_path) # make sure \ -> /
-	if(proj_to_src_path MATCHES "^\\.\\.")
+
+	# the default:
+	# CAKE_BINARY_DIR = CAKE_BINARY_DIR_PREFIX/<cid-made-from-source-dir-relative-to-CAKE_PROJECT_DIR>
+	# first handle the cases where this is not a good idea:
+	if(proj_to_src_path STREQUAL "")
+		# Example:
+		#   CAKE_PROJECT_DIR = /a/b/myproj
+		#   cake_source_dir = /a/b/myproj
+		#   -> CAKE_BINARY_DIR = CAKE_BINARY_DIR_PREFIX/_myproj_
+		set(CAKE_BINARY_DIR "${CAKE_BINARY_DIR_PREFIX}/_${src_dir_name}_")
+	elseif(proj_to_src_path MATCHES "^[.][.]") # = src dir is not inside CAKE_PROJECT_DIR
+		# Example:
+		#   CAKE_PROJECT_DIR = /a/b/myproj
+		#   cake_source_dir = /a/b/c
+		#   -> CAKE_BINARY_DIR = CAKE_BINARY_DIR_PREFIX/_a_b_c
 		string(MAKE_C_IDENTIFIER "${cake_source_dir}" cake_source_dir_cid)
 		set(CAKE_BINARY_DIR "${CAKE_BINARY_DIR_PREFIX}/${cake_source_dir_cid}")
-	elseif(proj_to_src_path STREQUAL "")
-		set(CAKE_BINARY_DIR "${CAKE_BINARY_DIR_PREFIX}/_${src_dir_name}_")
-	elseif(proj_to_src_path STREQUAL src_dir_name)
+	else()
+		# Example #1:
+		#   CAKE_PROJECT_DIR = /a/b/myproj
+		#   cake_source_dir = /a/b/myproj/myproj
+		#   -> CAKE_BINARY_DIR = CAKE_BINARY_DIR_PREFIX/myproj
+		# Example #1:
+		#   CAKE_PROJECT_DIR = /a/b/myproj
+		#   cake_source_dir = /a/b/myproj/c/d
+		#   -> CAKE_BINARY_DIR = CAKE_BINARY_DIR_PREFIX/c_d
 		string(REPLACE "/" "_" proj_to_src_path_cid "${proj_to_src_path}")
 		set(CAKE_BINARY_DIR "${CAKE_BINARY_DIR_PREFIX}/${proj_to_src_path_cid}")
 	endif()
