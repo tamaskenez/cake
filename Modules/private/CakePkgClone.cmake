@@ -1,6 +1,6 @@
 macro(_cake_remove_if_stale pk_var)
   cake_repo_db_get_field_by_pk(destination "${${pk_var}}")
-  if(NOT EXISTS "${ans}")
+  if(ans AND NOT EXISTS "${ans}")
     cake_repo_db_get_field_by_pk(shortcid "${${pk_var}}")
     set(_cris_shortcid "${ans}")
     cake_repo_db_erase_by_pk("${${pk_var}}")
