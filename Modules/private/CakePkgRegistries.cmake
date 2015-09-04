@@ -24,10 +24,8 @@ if(NOT CAKE_PKG_REGISTRIES_INCLUDED)
           file(DOWNLOAD "${r}" "${filename}" SHOW_PROGRESS)
         endif()
       endif()
-    endforeach()
-
-    include("${filename}")
-    
+      include("${filename}")
+    endforeach()  
   endfunction()
 
 endif()
